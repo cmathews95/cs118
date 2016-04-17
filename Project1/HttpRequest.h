@@ -1,5 +1,6 @@
 #ifndef HTTP_REQUEST_H
 #define HTTP_REQUEST_H
+#include <cstring>
 #include <string>
 #include <vector>
 #include <stdint.h>
@@ -47,6 +48,10 @@ class HttpRequest
 std::vector<uint8_t> HttpRequest::encode() {
   std::vector<uint8_t> wire;
   
+  const char * data = toText().data();
+  int length = strlen(data);
+
+  wire.assign(data,data+length);
 
   return wire;
 }
