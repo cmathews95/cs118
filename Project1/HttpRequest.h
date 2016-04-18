@@ -1,5 +1,6 @@
 #ifndef HTTP_REQUEST_H
 #define HTTP_REQUEST_H
+#include <iostream>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -7,12 +8,8 @@
 #include <map>
 
 enum HttpRequestConnection {KEEP_ALIVE, CLOSE};
-
-const std::map<HttpRequestConnection, std::string> HttpRequestConnectionMap = {{KEEP_ALIVE,"keep-alive"},{CLOSE,"close"}};
-
 enum HttpRequestMethod {GET};
-
-const std::map<HttpRequestMethod, std::string> HttpRequestMethodMap = {{GET,"GET"}};
+std::map<HttpRequestMethod, std::string> HttpRequestMethodMap = {{GET,"GET"}};
 
 enum HttpRequestHeaderFields {HOST,USER_AGENT,FROM,CONNECTION}; //continued
 
@@ -52,7 +49,6 @@ std::vector<uint8_t> HttpRequest::encode() {
   int length = strlen(data);
 
   wire.assign(data,data+length);
-
   return wire;
 }
 
