@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 // From showip.cpp
 #include <sys/types.h>
@@ -74,7 +75,7 @@ int main(int argc, char *argv[])
 {
 
 	string _host = "localhost";
-	string _port = 4000;
+	string _port = "4000";
 	string _filedir = ".";
 	if (argc >= 2)
 	{
@@ -94,7 +95,9 @@ int main(int argc, char *argv[])
 		exit(2);
 	}
 	// Initialize the server
-	const char* ip = dns(_host.c_str(), _port.c_str()).c_str();
+	const char* ip = dns(_host.c_str(), _port.c_str()).c_str();	
+	cout << "IP " << ip << endl;
+	cout << "Port " << atoi(_port.c_str()) <<  endl;
 
 	int socketfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (socketfd < 0)
@@ -104,14 +107,16 @@ int main(int argc, char *argv[])
 	}
 
 	struct sockaddr_in sAddress;
-	memset(&sAddress, 0, sizeof(sAddress));
 	sAddress.sin_family = AF_INET;
 	sAddress.sin_port = htons(atoi(_port.c_str()));
-	sAddress.sin_addr.s_addr = inet_addr(ipAddress);
-	
-	int bindStatus = bind(socketfd, (struct sockaddr*) &socket, sizeof(struct sockaddr_in));
+	sAddress.sin_addr.s_addr = inet_addr(ip);
+	memset(sAddress.sin_zero, '\0', sizeof(sAddress.sin_zero));
+
+	int bindStatus = bind(socketfd, (struct sockaddr*) &sAddress, sizeof(sAddress));
+	// cout << "Bind status: " << bindStatus << endl;
 	if (bindStatus < 0)
 	{
+	  
 		close(socketfd);
 		cout << "Error: Failed to bind socket to address." << endl;
 		exit(4);
@@ -120,21 +125,26 @@ int main(int argc, char *argv[])
 	// Start listening
 		// Allow 8 backlogged connection in queue
 	int listenStatus = listen(socketfd, 8);
+	cout << "Listen status: " << listenStatus << endl;
 	if (listenStatus < 0)
 	{
 		close(socketfd);
 		cout << "Error: Failed to listen for requests." << endl;
 		exit(5);
 	}
-
+	
 
 	// Wait for a connection request to accept
 	while (1)
 	{
+	  cout << "Waiting for connections. " << endl;
 		struct sockaddr_in client_sAddress;
-		int client_socketfd = accept(socketfd, (struct sockaddr*)&client_sAddress, sizeof(client_sAddress));
+		socklen_t client_AddressSize = sizeof(client_sAddress);
+		int client_socketfd = accept(socketfd, (struct sockaddr*)&client_sAddress, &client_AddressSize);
+		cout << "Client socket: " << client_socketfd << endl;
+		
 		char client_ip[INET_ADDRSTRLEN];
-
+		
 
 		if (client_socketfd < 0)
 		{
@@ -145,6 +155,7 @@ int main(int argc, char *argv[])
 		}
 	
 		int pid = fork();
+		cout << "PID: " << pid << endl;
 		if (pid == 0)
 		{
 			close(socketfd); // Don't want to be accepting a new connection while in the child process
@@ -164,6 +175,7 @@ int main(int argc, char *argv[])
 			vector<unsigned char> vec;
 			while (buf[i])
 			{
+			  cout << "Reading buf" << endl;
 				vec.push_back(buf[i]);
 				i++;
 			}
@@ -180,7 +192,7 @@ int main(int argc, char *argv[])
 			}
 			else
 			{
-				int resp_fd = open(req.getUrl().substr(1).c_str());
+			  int resp_fd = open(req.getUrl().substr(1).c_str(), O_RDONLY);
 				if (resp_fd < 0)
 				{
 					code = "404";
@@ -190,7 +202,7 @@ int main(int argc, char *argv[])
 				{
 					code = "200";
 					reason = "Request okay.";
-					unsigned char resp_buf[MAXBUFLEN];
+					char resp_buf[MAXBUFLEN];
 					memset(resp_buf, '\0', sizeof(resp_buf));
 					int resp_readStatus;
 
