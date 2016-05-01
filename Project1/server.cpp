@@ -172,6 +172,7 @@ int main(int argc, char *argv[])
 		    cout << buf << endl;
 		    
 		    int sendStatus = send(client_socketfd, buf, 20, 0);
+		    if (sendStatus < 0)
 		    {
 		      cout << "Error: Failed to send message to client." << endl;
 		      exit (8);
