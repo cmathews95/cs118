@@ -22,7 +22,7 @@ class HttpMessage
       std::string getVersion(void) const { return httpVersion; }
   void setVersion(std::string _version) { httpVersion =_version; } 
 
-void setHeaderField(HttpHeaderFields key, std::string value) { headerFields[(HttpHeaderFieldsMap[key])]=value; }
+  void setHeaderField(HttpHeaderFields key, std::string value) { headerFields[(HttpHeaderFieldsMap[key])]=value; }
   std::string getHeaderField(HttpHeaderFields key) { return headerFields[(HttpHeaderFieldsMap[key])]; }
   std::vector<unsigned char> encode(void) {  std::vector<unsigned char> wire;   const char * data = toText().data();   int length = strlen(data);   wire.assign(data,data+length);  return wire;}
 
