@@ -37,12 +37,12 @@ string hostname_to_ip(char *hostname)
 	
 	struct in_addr  **addresses = host->h_addr_list;
 	int i = 0;
-	while (addr_list[i])
+	while (addresses[i])
 	{
-		strcpy(ip, inet_ntoa(*addr_list[i]));
+		strcpy(ipString, inet_ntoa(*addresses[i]));
 	}
 
-	string ret = ip;
+	string ret = ipString;
 	return ret;
 }
 
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
 	}
 	if (argc >= 3)
 	{
-		_port = atoi(argv[2].c_str());
+		_port = atoi(argv[2]);
 	}
 	if (argc = 4)
 	{
@@ -81,10 +81,10 @@ int main(int argc, char *argv[])
 	}
 
 	struct sockaddr_in sAddress;
-	memset(&sAddress, 0, sizeof(sAddress))
+	memset(&sAddress, 0, sizeof(sAddress));
 	sAddress.sin_family = AF_INET;
 	sAddress.sin_port = htons(_port);
-	sAddress.sin_addr.s_addr = inet_addr(ip);
+	sAddress.sin_addr.s_addr = inet_addr(ip.c_str);
 	
 	int bindStatus = bind(socketfd, (struct sockaddr*) &socket, sizeof(struct sockaddr_in));
 	if (bindStatus < 0)
@@ -109,8 +109,8 @@ int main(int argc, char *argv[])
 	while (1)
 	{
 		struct sockaddr_in client_sAddress;
-		int client_socketfd = accept(socketfd, (struct sockaddr*)&client_sAddress, sizeof(client_sAddress);
-		char client_ip[INET_ADDRSTRLEN]
+		int client_socketfd = accept(socketfd, (struct sockaddr*)&client_sAddress, sizeof(client_sAddress));
+		char client_ip[INET_ADDRSTRLEN];
 
 
 		if (client_socketfd < 0)
@@ -145,19 +145,19 @@ int main(int argc, char *argv[])
 				i++;
 			}
 
-			HTTPRequest request(vec);
+			HttpRequest req(vec);
 
 			string code, reason, body;
 			// Response code referenced from https://developer.mozilla.org/en-US/docs/Web/HTTP/Response_codes
 
-			if (request.getMethod() != "GET" || ())
+			if (req.getMethod() != "GET")
 			{
 				code = "400";
-				reason = "Bad method in request."
+				reason = "Bad method in request.";
 			}
 			else
 			{
-				int resp_fd = open(request.getUrl().substr(1).c_str())
+				int resp_fd = open(req.getUrl().substr(1).c_str());
 				if (resp_fd < 0)
 				{
 					code = "404";
@@ -170,13 +170,12 @@ int main(int argc, char *argv[])
 					unsigned char resp_buf[MAXBUFLEN];
 					memset(resp_buf, '\0', sizeof(resp_buf));
 					int resp_readStatus;
-					string resp_body;
 
 					resp_readStatus = read(resp_fd, resp_buf, sizeof(resp_buf));
 					
 					if (resp_readStatus < 0)
 						cout << "Error: Failed to read from file." << endl;
-					
+					body = resp_buf;
 					
 				}
 			}
@@ -184,11 +183,8 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-
+			cout << "In parent." << endl;
+			exit(0);
 		}
-	
 	}
-
-
-
 }
