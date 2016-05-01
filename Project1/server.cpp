@@ -28,23 +28,23 @@ using namespace std;
 /*
 string hostname_to_ip(char *hostname)
 {
-	char ipString[20]; // Allocated a little extra space. IP Addresses should be 15 characters long. 1 more for null byte.
-	struct hostent *host = gethostbyname(hostname);
-	if (host == NULL)
-	{
-		cout << "Error: Could not resolve host name." << endl;
-		exit(1);
-	}
-	
-	struct in_addr  **addresses = host->h_addr_list;
-	int i = 0;
-	while (addresses[i])
-	{
-		strcpy(ipString, inet_ntoa(*addresses[i]));
-	}
+char ipString[20]; // Allocated a little extra space. IP Addresses should be 15 characters long. 1 more for null byte.
+struct hostent *host = gethostbyname(hostname);
+if (host == NULL)
+{
+cout << "Error: Could not resolve host name." << endl;
+exit(1);
+}
 
-	string ret = ipString;
-	return ret;
+struct in_addr  **addresses = host->h_addr_list;
+int i = 0;
+while (addresses[i])
+{
+strcpy(ipString, inet_ntoa(*addresses[i]));
+}
+
+string ret = ipString;
+return ret;
 }
 */
 
@@ -95,9 +95,9 @@ int main(int argc, char *argv[])
 		exit(2);
 	}
 	// Initialize the server
-	const char* ip = dns(_host.c_str(), _port.c_str()).c_str();	
+	const char* ip = dns(_host.c_str(), _port.c_str()).c_str();
 	cout << "IP " << ip << endl;
-	cout << "Port " << atoi(_port.c_str()) <<  endl;
+	cout << "Port " << atoi(_port.c_str()) << endl;
 
 	int socketfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (socketfd < 0)
@@ -116,14 +116,14 @@ int main(int argc, char *argv[])
 	// cout << "Bind status: " << bindStatus << endl;
 	if (bindStatus < 0)
 	{
-	  
+
 		close(socketfd);
 		cout << "Error: Failed to bind socket to address." << endl;
 		exit(4);
 	}
 
 	// Start listening
-		// Allow 8 backlogged connection in queue
+	// Allow 8 backlogged connection in queue
 	int listenStatus = listen(socketfd, 8);
 	cout << "Listen status: " << listenStatus << endl;
 	if (listenStatus < 0)
@@ -132,18 +132,18 @@ int main(int argc, char *argv[])
 		cout << "Error: Failed to listen for requests." << endl;
 		exit(5);
 	}
-	
+
 
 	// Wait for a connection request to accept
 	while (1)
 	{
-	  cout << "Waiting for connections. " << endl;
+		cout << "Waiting for connections. " << endl;
 		struct sockaddr_in client_sAddress;
 		socklen_t client_AddressSize = sizeof(client_sAddress);
 		int client_socketfd = accept(socketfd, (struct sockaddr*)&client_sAddress, &client_AddressSize);
 		cout << "Client socket: " << client_socketfd << endl;
-		
-		char client_ip[INET_ADDRSTRLEN] = {'\0'};
+
+		char client_ip[INET_ADDRSTRLEN] = { '\0' };
 		inet_ntop(client_sAddress.sin_family, &client_sAddress.sin_addr, client_ip, sizeof(client_ip));
 		cout << "Accepted connection from: " << client_ip << ":" << ntohs(client_sAddress.sin_port) << endl;
 
@@ -154,45 +154,47 @@ int main(int argc, char *argv[])
 			cout << "Error: Failed to accept connection with client." << endl;
 			exit(6);
 		}
-
+		/*
+		// Echo testing
 		// Reading from the connection
-		char buf[20] = {0};
+		char buf[20] = { 0 };
 		stringstream ss;
 
 		while (1)
-		  {
-		    memset(buf, '\0', sizeof(buf));
-		    int receptionStatus =  recv(client_socketfd, buf, 20, 0);
-		    if (receptionStatus < 0)
-		      {
-			cout << "Error: Failed to receive message from client." << endl;
-			exit (7);
-		      }
-		    ss << buf << endl;
-		    cout << buf << endl;
-		    
-		    int sendStatus = send(client_socketfd, buf, 20, 0);
-		    if (sendStatus < 0)
-		    {
-		      cout << "Error: Failed to send message to client." << endl;
-		      exit (8);
-		    }
-		    if (ss.str() == "close\n")
-		      {
-			break;
-		      }
-		    ss.str("");
-		  }
+		{
+			memset(buf, '\0', sizeof(buf));
+			int receptionStatus = recv(client_socketfd, buf, 20, 0);
+			if (receptionStatus < 0)
+			{
+				cout << "Error: Failed to receive message from client." << endl;
+				exit(7);
+			}
+			ss << buf << endl;
+			cout << buf << endl;
+
+			int sendStatus = send(client_socketfd, buf, 20, 0);
+			if (sendStatus < 0)
+			{
+				cout << "Error: Failed to send message to client." << endl;
+				exit(8);
+			}
+			if (ss.str() == "close\n")
+			{
+				break;
+			}
+			ss.str("");
+		}
 		close(client_socketfd);
 		return 0;
+		*/
 
-	
 		int pid = fork();
 		if (pid == 0)
 		{
 			close(socketfd); // Don't want to be accepting a new connection while in the child process
 			unsigned char buf[MAXBUFLEN];
 			memset(&buf, '\0', sizeof(buf));
+
 			
 			int readStatus = read(client_socketfd, buf, sizeof(buf));
 			if (readStatus < 0)
@@ -202,18 +204,18 @@ int main(int argc, char *argv[])
 				cout << "Error: Failed to read client request." << endl;
 				exit(8);
 			}
-
+			
 			int i = 0;
 			vector<unsigned char> vec;
 			while (buf[i])
 			{
-			  cout << "Reading buf" << endl;
+				cout << "Reading buf" << endl;
 				vec.push_back(buf[i]);
 				i++;
 			}
 
 			HttpRequest req(vec);
-			/*
+
 			string code, reason, body;
 			// Response code referenced from https://developer.mozilla.org/en-US/docs/Web/HTTP/Response_codes
 
@@ -224,7 +226,7 @@ int main(int argc, char *argv[])
 			}
 			else
 			{
-			  int resp_fd = open(req.getUrl().substr(1).c_str(), O_RDONLY);
+				int resp_fd = open(req.getUrl().substr(1).c_str(), O_RDONLY);
 				if (resp_fd < 0)
 				{
 					code = "404";
@@ -239,14 +241,14 @@ int main(int argc, char *argv[])
 					int resp_readStatus;
 
 					resp_readStatus = read(resp_fd, resp_buf, sizeof(resp_buf));
-					
+
 					if (resp_readStatus < 0)
 						cout << "Error: Failed to read from file." << endl;
 					body = resp_buf;
-					
+
 				}
 			}
-			*/
+
 		}
 		else
 		{
