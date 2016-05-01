@@ -143,8 +143,9 @@ int main(int argc, char *argv[])
 		int client_socketfd = accept(socketfd, (struct sockaddr*)&client_sAddress, &client_AddressSize);
 		cout << "Client socket: " << client_socketfd << endl;
 		
-		char client_ip[INET_ADDRSTRLEN];
-		
+		char client_ip[INET_ADDRSTRLEN] = {'\0'};
+		inet_ntop(client_sAddress.sin_family, &client_sAddress.sin_addr, client_ip, sizeof(client_ip));
+		cout << "Accepted connection from: " << client_ip << ":" << ntohs(client_sAddress.sin_port) << endl;
 
 		if (client_socketfd < 0)
 		{
@@ -153,9 +154,39 @@ int main(int argc, char *argv[])
 			cout << "Error: Failed to accept connection with client." << endl;
 			exit(6);
 		}
+
+		// Reading from the connection
+		char buf[20] = {0};
+		stringstream ss;
+
+		while (1)
+		  {
+		    memset(buf, '\0', sizeof(buf));
+		    int receptionStatus =  recv(client_socketfd, buf, 20, 0);
+		    if (receptionStatus < 0)
+		      {
+			cout << "Error: Failed to receive message from client." << endl;
+			exit (7);
+		      }
+		    ss << buf << endl;
+		    cout << buf << endl;
+		    
+		    int sendStatus = send(client_socketfd, buf, 20, 0);
+		    {
+		      cout << "Error: Failed to send message to client." << endl;
+		      exit (8);
+		    }
+		    if (ss.str() == "close\n")
+		      {
+			break;
+		      }
+		    ss.str("");
+		  }
+		close(client_socketfd);
+		return 0;
+
 	
 		int pid = fork();
-		cout << "PID: " << pid << endl;
 		if (pid == 0)
 		{
 			close(socketfd); // Don't want to be accepting a new connection while in the child process
@@ -168,7 +199,7 @@ int main(int argc, char *argv[])
 				close(socketfd);
 				close(client_socketfd);
 				cout << "Error: Failed to read client request." << endl;
-				exit(7);
+				exit(8);
 			}
 
 			int i = 0;
@@ -181,7 +212,7 @@ int main(int argc, char *argv[])
 			}
 
 			HttpRequest req(vec);
-
+			/*
 			string code, reason, body;
 			// Response code referenced from https://developer.mozilla.org/en-US/docs/Web/HTTP/Response_codes
 
@@ -214,7 +245,7 @@ int main(int argc, char *argv[])
 					
 				}
 			}
-
+			*/
 		}
 		else
 		{
