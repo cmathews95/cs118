@@ -143,10 +143,6 @@ int main(int argc, char *argv[])
 		int client_socketfd = accept(socketfd, (struct sockaddr*)&client_sAddress, &client_AddressSize);
 		cout << "Client socket: " << client_socketfd << endl;
 
-		char client_ip[INET_ADDRSTRLEN] = { '\0' };
-		inet_ntop(client_sAddress.sin_family, &client_sAddress.sin_addr, client_ip, sizeof(client_ip));
-		cout << "Accepted connection from: " << client_ip << ":" << ntohs(client_sAddress.sin_port) << endl;
-
 		if (client_socketfd < 0)
 		{
 			close(socketfd);
@@ -154,6 +150,12 @@ int main(int argc, char *argv[])
 			cout << "Error: Failed to accept connection with client." << endl;
 			exit(6);
 		}
+
+		char client_ip[INET_ADDRSTRLEN] = { '\0' };
+		inet_ntop(client_sAddress.sin_family, &client_sAddress.sin_addr, client_ip, sizeof(client_ip));
+		cout << "Accepted connection from: " << client_ip << ":" << ntohs(client_sAddress.sin_port) << endl;
+
+
 		/*
 		// Echo testing
 		// Reading from the connection
@@ -162,27 +164,27 @@ int main(int argc, char *argv[])
 
 		while (1)
 		{
-			memset(buf, '\0', sizeof(buf));
-			int receptionStatus = recv(client_socketfd, buf, 20, 0);
-			if (receptionStatus < 0)
-			{
-				cout << "Error: Failed to receive message from client." << endl;
-				exit(7);
-			}
-			ss << buf << endl;
-			cout << buf << endl;
+		memset(buf, '\0', sizeof(buf));
+		int receptionStatus = recv(client_socketfd, buf, 20, 0);
+		if (receptionStatus < 0)
+		{
+		cout << "Error: Failed to receive message from client." << endl;
+		exit(7);
+		}
+		ss << buf << endl;
+		cout << buf << endl;
 
-			int sendStatus = send(client_socketfd, buf, 20, 0);
-			if (sendStatus < 0)
-			{
-				cout << "Error: Failed to send message to client." << endl;
-				exit(8);
-			}
-			if (ss.str() == "close\n")
-			{
-				break;
-			}
-			ss.str("");
+		int sendStatus = send(client_socketfd, buf, 20, 0);
+		if (sendStatus < 0)
+		{
+		cout << "Error: Failed to send message to client." << endl;
+		exit(8);
+		}
+		if (ss.str() == "close\n")
+		{
+		break;
+		}
+		ss.str("");
 		}
 		close(client_socketfd);
 		return 0;
@@ -196,22 +198,22 @@ int main(int argc, char *argv[])
 			unsigned char buf[MAXBUFLEN];
 			memset(&buf, '\0', sizeof(buf));
 			cout << "Created buffer." << endl;
-			
+
 			int readStatus = read(client_socketfd, buf, sizeof(buf));
 			cout << "Read Status: " << readStatus << endl;
 			if (readStatus < 0)
 			{
-			 	close(client_socketfd);
+				close(client_socketfd);
 				cout << "Error: Failed to read client request." << endl;
 				exit(8);
 			}
-			
+
 			stringstream ss;
 			ss << buf << endl;
 			if (ss.str() == "close\n")
-			  {
-			    break;
-			  }
+			{
+				break;
+			}
 
 			int i = 0;
 			vector<unsigned char> vec;
@@ -261,19 +263,21 @@ int main(int argc, char *argv[])
 			resp.setHeaderField(CONTENT_LENGTH, to_string(body.length()));
 			vector<unsigned char> respVec = resp.encode();
 			string respString = "";
-			for(int i = 0; i < vec.size(); i++)
-			  {
-			    respString+=vec[i];
-			  }
+			for (int i = 0; i < vec.size(); i++)
+			{
+				respString += vec[i];
+			}
 			cout << "Response: " << respString << endl;
-			
+
 			int responseStatus = send(client_socketfd, respString.c_str(), respString.length(), 0);
 			if (responseStatus < 0)
-			  {
-			    cout << "Error: Failed to send response back to client." << endl;
-			    exit (10);
-			  }
-					    	
+			{
+				cout << "Error: Failed to send response back to client." << endl;
+				exit(10);
+			}
+
+			close(client_socketfd);
+
 		}
 		else
 		{
@@ -281,9 +285,9 @@ int main(int argc, char *argv[])
 			exit(0);
 		}
 
-		close(client_socketfd);
+
 	}
-	
+
 
 }
 
