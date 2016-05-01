@@ -128,6 +128,7 @@ int main(int argc, char* argv[]){
   std::stringstream ss;
 
   HttpRequest request(path, "GET");
+  request.setHeaderField(HOST, host);
   request.setConnection(CLOSE);
   std::vector<unsigned char> vec = request.encode();
   
@@ -140,7 +141,7 @@ int main(int argc, char* argv[]){
     perror("send");
     return 4;
   }
-  std::cout << "FLAG 1: " << std::endl;
+
   if (recv(sockfd, buf, 100, 0) == -1) {
     perror("recv");
     return 5;
