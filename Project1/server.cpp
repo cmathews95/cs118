@@ -201,18 +201,23 @@ int main(int argc, char *argv[])
 			cout << "Read Status: " << readStatus << endl;
 			if (readStatus < 0)
 			{
-				close(socketfd);
-				close(client_socketfd);
+			 	close(client_socketfd);
 				cout << "Error: Failed to read client request." << endl;
 				exit(8);
 			}
 			
+			stringstream ss;
+			ss << buf << endl;
+			if (ss.str() == "close\n")
+			  {
+			    break;
+			  }
+
 			int i = 0;
 			vector<unsigned char> vec;
 			cout << "Created Vector: " << endl;
 			while (buf[i])
 			{
-				cout << "Reading buf" << endl;
 				vec.push_back(buf[i]);
 				i++;
 			}
@@ -250,6 +255,7 @@ int main(int argc, char *argv[])
 						cout << "Error: Failed to read from file." << endl;
 					body = resp_buf;
 				}
+				close(resp_fd);
 			}
 			HttpResponse resp(code, reason, body);
 			resp.setHeaderField(CONTENT_LENGTH, to_string(body.length()));
@@ -274,6 +280,10 @@ int main(int argc, char *argv[])
 			cout << "In parent." << endl;
 			exit(0);
 		}
+
+		close(client_socketfd);
 	}
+	
+
 }
 
