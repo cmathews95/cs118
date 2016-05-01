@@ -11,6 +11,7 @@
 #include <netdb.h>
 #include "HttpRequest.h"
 #include <netinet/in.h>
+#include <vector>
 
 struct connection_info{
   std::string hostname;
@@ -122,12 +123,38 @@ int main(int argc, char* argv[]){
     ntohs(clientAddr.sin_port) << std::endl;
   
   // send/receive data to/from connection
-  bool isEnd = false;
   std::string input;
-  char buf[20] = {0};
+  char buf[100] = {0};
   std::stringstream ss;
 
-  while (!isEnd) {
+  HttpRequest request(path, "GET");
+  request.setConnection(CLOSE);
+  std::vector<unsigned char> vec = request.encode();
+  
+  std::string req = "";
+  for(int i = 0; i < vec.size(); i++)
+    req+=vec[i];
+  std::cout << "REQUEST: " << req << std::endl;
+  
+  if (send(sockfd, req.c_str(), req.length(), 0) == -1) {
+    perror("send");
+    return 4;
+  }
+  std::cout << "FLAG 1: " << std::endl;
+  if (recv(sockfd, buf, 100, 0) == -1) {
+    perror("recv");
+    return 5;
+  }
+  
+  ss << buf << std::endl;
+  std::cout << "RESPONSE: ";
+  std::cout << buf << std::endl;
+
+  close(sockfd);
+  return 0;
+}
+  
+  /*  while (!isEnd) {
     memset(buf, '\0', sizeof(buf));
 
     std::cout << "send: ";
@@ -156,3 +183,4 @@ int main(int argc, char* argv[]){
 
   return 0;
 }
+  */
