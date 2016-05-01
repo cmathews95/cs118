@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-g -std=c++11
+CFLAGS=-g -std=c++11 -pthread
 USER=konradjniemiec
 HEADERS=HttpResponse.h HttpRequest.h HttpMessage.h
 

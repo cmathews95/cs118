@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <thread>
 
 // From showip.cpp
 #include <sys/types.h>
@@ -47,6 +48,96 @@ string ret = ipString;
 return ret;
 }
 */
+
+void threadFunc(int client_socketfd)
+{
+		cout << "In child process." << endl;
+		//		close(socketfd); // Don't want to be accepting a new connection while in the child process
+		unsigned char buf[MAXBUFLEN];
+		memset(&buf, '\0', sizeof(buf));
+		cout << "Created buffer." << endl;
+
+		int readStatus = read(client_socketfd, buf, sizeof(buf));
+		cout << "Read Status: " << readStatus << endl;
+		if (readStatus < 0)
+		{
+			close(client_socketfd);
+			cout << "Error: Failed to read client request." << endl;
+			exit(8);
+		}
+
+		stringstream ss;
+		ss << buf << endl;
+		if (ss.str() == "close\n")
+		{
+		  terminate();
+		}
+
+		int i = 0;
+		vector<unsigned char> vec;
+		cout << "Created Vector: " << endl;
+		while (buf[i])
+		{
+			vec.push_back(buf[i]);
+			i++;
+		}
+		cout << "Creating a request from the vector." << endl;
+		HttpRequest req(vec);
+		cout << "Created a request from the vector." << endl;
+
+		string code, reason, body;
+		// Response code referenced from https://developer.mozilla.org/en-US/docs/Web/HTTP/Response_codes
+		cout << "Preparing response." << endl;
+		if (req.getMethod() != "GET")
+		{
+			code = "400";
+			reason = "Bad method in request.";
+		}
+		else
+		{
+			int resp_fd = open(req.getUrl().substr(1).c_str(), O_RDONLY);
+			if (resp_fd < 0)
+			{
+				code = "404";
+				reason = "Page not found.";
+			}
+			else
+			{
+				code = "200";
+				reason = "Request okay.";
+				char resp_buf[MAXBUFLEN];
+				memset(resp_buf, '\0', sizeof(resp_buf));
+				int resp_readStatus;
+
+				resp_readStatus = read(resp_fd, resp_buf, sizeof(resp_buf));
+
+				if (resp_readStatus < 0)
+					cout << "Error: Failed to read from file." << endl;
+				body = resp_buf;
+			}
+			close(resp_fd);
+		}
+		HttpResponse resp(code, reason, body);
+		resp.setHeaderField(CONTENT_LENGTH, to_string(body.length()));
+		vector<unsigned char> respVec = resp.encode();
+		string respString = "";
+		for (int i = 0; i < vec.size(); i++)
+		{
+			respString += vec[i];
+		}
+		cout << "Response: " << respString << endl;
+
+		int responseStatus = send(client_socketfd, respString.c_str(), respString.length(), 0);
+		if (responseStatus < 0)
+		{
+			cout << "Error: Failed to send response back to client." << endl;
+			exit(10);
+		}
+
+		close(client_socketfd);
+
+	
+}
 
 std::string dns(const char* hostname, const char* port) {
 	int status = 0;
@@ -143,10 +234,6 @@ int main(int argc, char *argv[])
 		int client_socketfd = accept(socketfd, (struct sockaddr*)&client_sAddress, &client_AddressSize);
 		cout << "Client socket: " << client_socketfd << endl;
 
-		char client_ip[INET_ADDRSTRLEN] = { '\0' };
-		inet_ntop(client_sAddress.sin_family, &client_sAddress.sin_addr, client_ip, sizeof(client_ip));
-		cout << "Accepted connection from: " << client_ip << ":" << ntohs(client_sAddress.sin_port) << endl;
-
 		if (client_socketfd < 0)
 		{
 			close(socketfd);
@@ -154,136 +241,16 @@ int main(int argc, char *argv[])
 			cout << "Error: Failed to accept connection with client." << endl;
 			exit(6);
 		}
-		/*
-		// Echo testing
-		// Reading from the connection
-		char buf[20] = { 0 };
-		stringstream ss;
 
-		while (1)
-		{
-			memset(buf, '\0', sizeof(buf));
-			int receptionStatus = recv(client_socketfd, buf, 20, 0);
-			if (receptionStatus < 0)
-			{
-				cout << "Error: Failed to receive message from client." << endl;
-				exit(7);
-			}
-			ss << buf << endl;
-			cout << buf << endl;
+		char client_ip[INET_ADDRSTRLEN] = { '\0' };
+		inet_ntop(client_sAddress.sin_family, &client_sAddress.sin_addr, client_ip, sizeof(client_ip));
+		cout << "Accepted connection from: " << client_ip << ":" << ntohs(client_sAddress.sin_port) << endl;
 
-			int sendStatus = send(client_socketfd, buf, 20, 0);
-			if (sendStatus < 0)
-			{
-				cout << "Error: Failed to send message to client." << endl;
-				exit(8);
-			}
-			if (ss.str() == "close\n")
-			{
-				break;
-			}
-			ss.str("");
-		}
-		close(client_socketfd);
-		return 0;
-		*/
-
-		int pid = fork();
-		if (pid == 0)
-		{
-			cout << "In child process." << endl;
-			close(socketfd); // Don't want to be accepting a new connection while in the child process
-			unsigned char buf[MAXBUFLEN];
-			memset(&buf, '\0', sizeof(buf));
-			cout << "Created buffer." << endl;
-			
-			int readStatus = read(client_socketfd, buf, sizeof(buf));
-			cout << "Read Status: " << readStatus << endl;
-			if (readStatus < 0)
-			{
-			 	close(client_socketfd);
-				cout << "Error: Failed to read client request." << endl;
-				exit(8);
-			}
-			
-			stringstream ss;
-			ss << buf << endl;
-			if (ss.str() == "close\n")
-			  {
-			    break;
-			  }
-
-			int i = 0;
-			vector<unsigned char> vec;
-			cout << "Created Vector: " << endl;
-			while (buf[i])
-			{
-				vec.push_back(buf[i]);
-				i++;
-			}
-			cout << "Creating a request from the vector." << endl;
-			HttpRequest req(vec);
-			cout << "Created a request from the vector." << endl;
-
-			string code, reason, body;
-			// Response code referenced from https://developer.mozilla.org/en-US/docs/Web/HTTP/Response_codes
-			cout << "Preparing response." << endl;
-			if (req.getMethod() != "GET")
-			{
-				code = "400";
-				reason = "Bad method in request.";
-			}
-			else
-			{
-				int resp_fd = open(req.getUrl().substr(1).c_str(), O_RDONLY);
-				if (resp_fd < 0)
-				{
-					code = "404";
-					reason = "Page not found.";
-				}
-				else
-				{
-					code = "200";
-					reason = "Request okay.";
-					char resp_buf[MAXBUFLEN];
-					memset(resp_buf, '\0', sizeof(resp_buf));
-					int resp_readStatus;
-
-					resp_readStatus = read(resp_fd, resp_buf, sizeof(resp_buf));
-
-					if (resp_readStatus < 0)
-						cout << "Error: Failed to read from file." << endl;
-					body = resp_buf;
-				}
-				close(resp_fd);
-			}
-			HttpResponse resp(code, reason, body);
-			resp.setHeaderField(CONTENT_LENGTH, to_string(body.length()));
-			vector<unsigned char> respVec = resp.encode();
-			string respString = "";
-			for(int i = 0; i < vec.size(); i++)
-			  {
-			    respString+=vec[i];
-			  }
-			cout << "Response: " << respString << endl;
-			
-			int responseStatus = send(client_socketfd, respString.c_str(), respString.length(), 0);
-			if (responseStatus < 0)
-			  {
-			    cout << "Error: Failed to send response back to client." << endl;
-			    exit (10);
-			  }
-					    	
-		}
-		else
-		{
-			cout << "In parent." << endl;
-			exit(0);
-		}
-
-		close(client_socketfd);
+		thread(threadFunc, client_socketfd).detach();
 	}
+	close(socketfd);
+	return 0;
 	
-
+	
 }
 
