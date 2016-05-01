@@ -190,13 +190,15 @@ int main(int argc, char *argv[])
 
 		int pid = fork();
 		if (pid == 0)
-t		{
+		{
+			cout << "In child process." << endl;
 			close(socketfd); // Don't want to be accepting a new connection while in the child process
 			unsigned char buf[MAXBUFLEN];
 			memset(&buf, '\0', sizeof(buf));
-
+			cout << "Created buffer." << endl;
 			
 			int readStatus = read(client_socketfd, buf, sizeof(buf));
+			cout << "Read Status: " << readStatus << endl;
 			if (readStatus < 0)
 			{
 				close(socketfd);
@@ -207,18 +209,20 @@ t		{
 			
 			int i = 0;
 			vector<unsigned char> vec;
+			cout << "Created Vector: " << endl;
 			while (buf[i])
 			{
 				cout << "Reading buf" << endl;
 				vec.push_back(buf[i]);
 				i++;
 			}
-
+			cout << "Creating a request from the vector." << endl;
 			HttpRequest req(vec);
+			cout << "Created a request from the vector." << endl;
 
 			string code, reason, body;
 			// Response code referenced from https://developer.mozilla.org/en-US/docs/Web/HTTP/Response_codes
-
+			cout << "Preparing response." << endl;
 			if (req.getMethod() != "GET")
 			{
 				code = "400";
