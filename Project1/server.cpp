@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
 	
 		int pid = fork();
 		if (pid == 0)
-		{
+t		{
 			close(socketfd); // Don't want to be accepting a new connection while in the child process
 			unsigned char buf[MAXBUFLEN];
 			memset(&buf, '\0', sizeof(buf));
