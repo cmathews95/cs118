@@ -24,10 +24,10 @@
 using namespace std;
 
 #define MAXBUFLEN 4096
-
+/*
 string hostname_to_ip(char *hostname)
 {
-	char ipString[20]; // Allocated a little extra space.f IP Addresses should be 15 characters long. 1 more for null byte.
+	char ipString[20]; // Allocated a little extra space. IP Addresses should be 15 characters long. 1 more for null byte.
 	struct hostent *host = gethostbyname(hostname);
 	if (host == NULL)
 	{
@@ -45,13 +45,36 @@ string hostname_to_ip(char *hostname)
 	string ret = ipString;
 	return ret;
 }
+*/
+
+std::string dns(const char* hostname, const char* port) {
+	int status = 0;
+	struct addrinfo hints;
+	struct addrinfo* res;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+
+	if ((status = getaddrinfo(hostname, port, &hints, &res)) != 0) {
+		std::cerr << "getaddrinfo: " << gai_strerror(status) << std::endl;
+		return NULL;
+	}
+	for (struct addrinfo* p = res; p != 0; p = p->ai_next) {
+		struct sockaddr_in* ipv4 = (struct sockaddr_in*)p->ai_addr;
+		char ipstr[INET_ADDRSTRLEN] = { '\0' };
+		inet_ntop(p->ai_family, &(ipv4->sin_addr), ipstr, sizeof(ipstr));
+		return std::string(ipstr);
+	}
+	return NULL;
+}
+
 
 
 int main(int argc, char *argv[])
 {
 
 	string _host = "localhost";
-	int _port = 4000;
+	string _port = 4000;
 	string _filedir = ".";
 	if (argc >= 2)
 	{
@@ -59,7 +82,7 @@ int main(int argc, char *argv[])
 	}
 	if (argc >= 3)
 	{
-		_port = atoi(argv[2]);
+		_port = argv[2];
 	}
 	if (argc = 4)
 	{
@@ -71,7 +94,7 @@ int main(int argc, char *argv[])
 		exit(2);
 	}
 	// Initialize the server
-	string ip = hostname_to_ip(_host.c_str());
+	const char* ip = dns(_host.c_str(), _port.c_str()).c_str();
 
 	int socketfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (socketfd < 0)
@@ -83,8 +106,8 @@ int main(int argc, char *argv[])
 	struct sockaddr_in sAddress;
 	memset(&sAddress, 0, sizeof(sAddress));
 	sAddress.sin_family = AF_INET;
-	sAddress.sin_port = htons(_port);
-	sAddress.sin_addr.s_addr = inet_addr(ip.c_str);
+	sAddress.sin_port = htons(atoi(_port.c_str()));
+	sAddress.sin_addr.s_addr = inet_addr(ipAddress);
 	
 	int bindStatus = bind(socketfd, (struct sockaddr*) &socket, sizeof(struct sockaddr_in));
 	if (bindStatus < 0)
