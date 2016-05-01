@@ -83,18 +83,28 @@ int main(int argc, char* argv[]){
   std::cout << "Resource URL: " << argv[1] << std::endl;
 
   // Parse URL
-  connection_info* req_data = urlScraper(argv[1]);
-  std::cout << "Host Name: " <<  req_data->hostname << std::endl;
-  std::cout << "Port: " <<  req_data->port << std::endl;
-  std::cout << "Path: " <<  req_data->obj_path << std::endl;
-  // Host & Port & path to CStrings
-  const char* host = req_data->hostname.c_str();
-  const char* port = req_data->port.c_str();
-  const char* path = req_data->obj_path.c_str();
-  
-  const char* ipaddress = dns(host, port).c_str();
-  std::cout << "IP ADDRESS: " << ipaddress << std::endl;
-
+  const char * host;
+  const char * port;
+  const char * path;
+  const char * ipaddress;
+  try {
+    connection_info* req_data = urlScraper(argv[1]);
+    if (req_data == NULL) {throw std::logic_error("ERROR");}
+    std::cout << "Host Name: " <<  req_data->hostname << std::endl;
+    std::cout << "Port: " <<  req_data->port << std::endl;
+    std::cout << "Path: " <<  req_data->obj_path << std::endl;
+    // Host & Port & path to CStrings
+    host = req_data->hostname.c_str();
+    port = req_data->port.c_str();
+    path = req_data->obj_path.c_str();
+    
+    ipaddress = dns(host, port).c_str();
+    std::cout << "IP ADDRESS: " << ipaddress << std::endl;
+  }
+  catch (...) {
+    std::cerr << "Improperly formatted request" << std::endl;
+    return 1;
+  }
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
   // Setup Connection to Server
