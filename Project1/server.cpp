@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <thread>
 
 // From showip.cpp
 #include <sys/types.h>
@@ -50,9 +51,8 @@ return ret;
 
 void threadFunc(int client_socketfd)
 {
-	{
 		cout << "In child process." << endl;
-		close(socketfd); // Don't want to be accepting a new connection while in the child process
+		//		close(socketfd); // Don't want to be accepting a new connection while in the child process
 		unsigned char buf[MAXBUFLEN];
 		memset(&buf, '\0', sizeof(buf));
 		cout << "Created buffer." << endl;
@@ -70,7 +70,7 @@ void threadFunc(int client_socketfd)
 		ss << buf << endl;
 		if (ss.str() == "close\n")
 		{
-			break;
+		  terminate();
 		}
 
 		int i = 0;
@@ -136,7 +136,7 @@ void threadFunc(int client_socketfd)
 
 		close(client_socketfd);
 
-	}
+	
 }
 
 std::string dns(const char* hostname, const char* port) {
@@ -248,8 +248,9 @@ int main(int argc, char *argv[])
 
 		thread(threadFunc, client_socketfd).detach();
 	}
-
+	close(socketfd);
 	return 0;
-
+	
+	
 }
 
