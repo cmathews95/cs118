@@ -9,7 +9,7 @@
 #include <map>
 #include <utility>
 #include "HttpMessage.h"
-enum HttpRequestConnection {KEEP_ALIVE, CLOSE};
+
 enum HttpRequestMethod {GET};
 std::map<HttpRequestMethod, std::string> HttpRequestMethodMap = {{GET,"GET"}};
 
@@ -31,8 +31,6 @@ class HttpRequest : public HttpMessage
   
   //setting Header fields
   //setting the Connection, a specific header
-  void setConnection(HttpRequestConnection conn) { setHeaderField(CONNECTION,(conn==KEEP_ALIVE?std::string("keep-alive"):std::string("close"))); }
-
   std::string toText(void);
 
 
@@ -83,10 +81,8 @@ HttpRequest::HttpRequest(std::vector<unsigned char> wire) : HttpMessage() {
 std::string HttpRequest::toText(void) {
   std::string text = method + " " + url + " " + HttpVersionToken+"\r\n";
   std::map<std::string,std::string> map = getHeaderFields();
-  std::cout<<"Supposed length: " << map.size()  << "\n" <<  std::cout.flush();
   for(std::map<std::string,std::string>::iterator iter = map.begin(); iter != map.end(); iter++)
     {
-        std::cout<<"Adding this: " << iter->first  << "\n" <<  std::cout.flush();
       text+= iter->first + ": " + iter->second + "\r\n";
     }
   return text;
