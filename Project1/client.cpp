@@ -9,81 +9,101 @@
 #include <iostream>
 #include <sstream>
 #include <netdb.h>
+#include "HttpRequest.h"
+#include <netinet/in.h>
 
-char ipstr[INET_ADDRSTRLEN] = {'\0'};
 struct connection_info{
   std::string hostname;
   std::string port;
-  std::string object;
+  std::string obj_path;
 };
 
-connection_info*:struct urlScraper(char* url) {
-  int i = 0;
+connection_info* urlScraper(char* url) {
+  if(strlen(url) <=7)
+    return NULL;
+
+  std::string urlS = std::string(url, strlen(url));
   connection_info* temp = new connection_info();
-  while(url[i]!='\0') {
-
+  temp->hostname = "";
+  temp->port = "";
+  temp->obj_path = "";
+  int i = 7;
+  while (url[i]!='/' && url[i]!='\0'){
+    temp->hostname += url[i];
+    ++i;
   }
-
+  while (i < strlen(url)){
+    temp->obj_path += url[i];
+    ++i;
+  }
+  i = 0;
+  while (temp->hostname[i] != ':' && url[i]!='\0')i++;
+  if (i+1 < strlen(url)){
+    int x = i;
+    i++;
+    while (temp->hostname[i] != '\0'){
+      temp->port += temp->hostname[i];
+      i++;
+    }
+    temp->hostname.erase(x,temp->hostname.length());
+  }
+  if (temp->port == "")
+    temp->port = "80";
   return temp;
-
 }
-int dns(char* hostname)
-{
+
+std::string dns(const char* hostname, const char* port){
+  int status = 0;
   struct addrinfo hints;
   struct addrinfo* res;
-
-  // prepare hints
   memset(&hints, 0, sizeof(hints));
-  hints.ai_family = AF_INET; // IPv4
-  hints.ai_socktype = SOCK_STREAM; // TCP
-
-  // get address
-  int status = 0;
-  if ((status = getaddrinfo(hostname, "80", &hints, &res)) != 0) {
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+  
+  if ((status = getaddrinfo(hostname, port, &hints, &res)) != 0) {
     std::cerr << "getaddrinfo: " << gai_strerror(status) << std::endl;
-    return 0;
+    return NULL;
   }
-
-  // std::cout << "IP addresses for " << hostname << ": " << std::endl;
-
-  for(struct addrinfo* p = res; p != 0; p = p->ai_next) {
-    // convert address to IPv4 address
+  for (struct addrinfo* p = res; p != 0; p = p->ai_next) {
     struct sockaddr_in* ipv4 = (struct sockaddr_in*)p->ai_addr;
-
-    // convert the IP to a string and print it:
+    char ipstr[INET_ADDRSTRLEN] = {'\0'};
     inet_ntop(p->ai_family, &(ipv4->sin_addr), ipstr, sizeof(ipstr));
-    // std::cout << "  " << ipstr << std::endl;
-    return ipstr;
+    return std::string(ipstr);
   }
-
-  freeaddrinfo(res); // free the linked list
-
-  return 1;
+  return NULL;
 }
 
-
-
-int main(int argc, char *argv[])
-{
+int main(int argc, char* argv[]){
+  // Check Arguments
   if(argc <= 1) {
     std::cerr << "Not Enough Arguments...Pass in URL" << std::endl;
     return 1;
   }
-
   std::cout << "Resource URL: " << argv[1] << std::endl;
-  // create a socket using TCP IP
+
+  // Parse URL
+  connection_info* req_data = urlScraper(argv[1]);
+  std::cout << "Host Name: " <<  req_data->hostname << std::endl;
+  std::cout << "Port: " <<  req_data->port << std::endl;
+  std::cout << "Path: " <<  req_data->obj_path << std::endl;
+  // Host & Port & path to CStrings
+  const char* host = req_data->hostname.c_str();
+  const char* port = req_data->port.c_str();
+  const char* path = req_data->obj_path.c_str();
+  
+  const char* ipaddress = dns(host, port).c_str();
+  std::cout << "IP ADDRESS: " << ipaddress << std::endl;
+
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-  for ( int i = 0; i < argc; i++ ) {
-    connection_info* req_data = urlScraper(argv[i]);
-  }
+  // Setup Connection to Server
   struct sockaddr_in serverAddr;
   serverAddr.sin_family = AF_INET;
-  serverAddr.sin_port = htons(40000);     // short, network byte order
-  serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+  serverAddr.sin_port = htons(atoi(port));
+  serverAddr.sin_addr.s_addr = inet_addr(ipaddress);
   memset(serverAddr.sin_zero, '\0', sizeof(serverAddr.sin_zero));
 
-  // connect to the server
+  // Connection
   if (connect(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
     perror("connect");
     return 2;
@@ -100,8 +120,7 @@ int main(int argc, char *argv[])
   inet_ntop(clientAddr.sin_family, &clientAddr.sin_addr, ipstr, sizeof(ipstr));
   std::cout << "Set up a connection from: " << ipstr << ":" <<
     ntohs(clientAddr.sin_port) << std::endl;
-
-
+  
   // send/receive data to/from connection
   bool isEnd = false;
   std::string input;
