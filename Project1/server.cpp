@@ -20,7 +20,7 @@
 
 #include "HttpRequest.h"
 #include "HttpResponse.h"
-
+#include "HttpMessage.h"
 
 using namespace std;
 
@@ -249,10 +249,25 @@ int main(int argc, char *argv[])
 					if (resp_readStatus < 0)
 						cout << "Error: Failed to read from file." << endl;
 					body = resp_buf;
-
 				}
 			}
-
+			HttpResponse resp(code, reason, body);
+			resp.setHeaderField(CONTENT_LENGTH, to_string(body.length()));
+			vector<unsigned char> respVec = resp.encode();
+			string respString = "";
+			for(int i = 0; i < vec.size(); i++)
+			  {
+			    respString+=vec[i];
+			  }
+			cout << "Response: " << respString << endl;
+			
+			int responseStatus = send(client_socketfd, respString.c_str(), respString.length(), 0);
+			if (responseStatus < 0)
+			  {
+			    cout << "Error: Failed to send response back to client." << endl;
+			    exit (10);
+			  }
+					    	
 		}
 		else
 		{
@@ -261,3 +276,4 @@ int main(int argc, char *argv[])
 		}
 	}
 }
+
