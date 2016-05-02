@@ -174,7 +174,7 @@ void threadFunc(int client_socketfd)
 
 	{
 
-		code = "BAD_REQUEST";
+		code = BAD_REQUEST;
 
 		reason = "Bad method in request.";
 
@@ -190,7 +190,7 @@ void threadFunc(int client_socketfd)
 
 		{
 
-			code = "NOT_FOUND";
+			code = NOT_FOUND;
 
 			reason = "Page not found.";
 
@@ -200,7 +200,7 @@ void threadFunc(int client_socketfd)
 
 		{
 
-			code = "OK";
+			code = OK;
 
 			reason = "Request okay.";
 
