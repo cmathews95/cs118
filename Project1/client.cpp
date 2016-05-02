@@ -15,6 +15,8 @@
 #include "HttpMessage.h"
 #include "HttpResponse.h"
 #include <fstream>
+const int MESSAGE_SIZE = 1000000000;
+
 struct connection_info{
   std::string hostname;
   std::string port;
@@ -136,7 +138,7 @@ int main(int argc, char* argv[]){
   
   // send/receive data to/from connection
   std::string input;
-  char buf[4096] = {0};
+  char buf[MESSAGE_SIZE] = {0};
   std::stringstream ss;
 
   HttpRequest request(path, "GET");
@@ -154,7 +156,7 @@ int main(int argc, char* argv[]){
     return 4;
   }
 
-  if (recv(sockfd, buf, 4096, 0) == -1) {
+  if (recv(sockfd, buf, MESSAGE_SIZE, 0) == -1) {
     perror("recv");
     return 5;
   }
@@ -200,34 +202,3 @@ int main(int argc, char* argv[]){
   close(sockfd);
   return 0;
 }
-  
-  /*  while (!isEnd) {
-    memset(buf, '\0', sizeof(buf));
-
-    std::cout << "send: ";
-    std::cin >> input;
-    if (send(sockfd, input.c_str(), input.size(), 0) == -1) {
-      perror("send");
-      return 4;
-    }
-
-
-    if (recv(sockfd, buf, 20, 0) == -1) {
-      perror("recv");
-      return 5;
-    }
-    ss << buf << std::endl;
-    std::cout << "echo: ";
-    std::cout << buf << std::endl;
-
-    if (ss.str() == "close\n")
-      break;
-
-    ss.str("");
-  }
-
-  close(sockfd);
-
-  return 0;
-}
-  */
