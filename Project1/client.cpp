@@ -15,7 +15,7 @@
 #include "HttpMessage.h"
 #include "HttpResponse.h"
 #include <fstream>
-const int MESSAGE_SIZE = 1000000000;
+const int MESSAGE_SIZE = 1000000;
 
 struct connection_info{
   std::string hostname;
@@ -138,9 +138,9 @@ int main(int argc, char* argv[]){
   
   // send/receive data to/from connection
   std::string input;
-  char buf[MESSAGE_SIZE] = {0};
+  char* buf = new char[MESSAGE_SIZE];
   std::stringstream ss;
-
+  std::cout << "size matters" << std::endl;
   HttpRequest request(path, "GET");
   request.setHeaderField(HOST, host);
   request.setConnection(CLOSE);
@@ -155,11 +155,12 @@ int main(int argc, char* argv[]){
     perror("send");
     return 4;
   }
-
+  
   if (recv(sockfd, buf, MESSAGE_SIZE, 0) == -1) {
     perror("recv");
     return 5;
   }
+
   // Turn reponse into vector<char>
   std::vector<unsigned char> resp;
   resp.assign(buf, buf+strlen(buf));
