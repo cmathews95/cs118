@@ -172,12 +172,10 @@ int main(int argc, char* argv[]){
   int goodResponse = 0;
   HttpResponse response(resp);
 
-  std::cout << "CHECK1" << std::endl;
-  if (response.getStatusCode() == OK){
-    std::cout << "CHECK" << std::endl;
+  if (response.getStatusCode().compare(OK)==0){
     int len = atoi(response.getHeaderField(CONTENT_LENGTH).c_str());
     std::cout << "LENGTH: " << len << std::endl;
-  }else if(response.getStatusCode() == BAD_REQUEST) {
+  }else if(response.getStatusCode().compare(BAD_REQUEST)==0) {
     std::cerr << "Bad Request: " << response.getReasoning() << std::endl;
   }else{
     std::cerr << "Requested File Not Found" << std::endl;
