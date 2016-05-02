@@ -179,8 +179,9 @@ int main(int argc, char* argv[]){
 	e++;
       }
       std::cout << "FILE NAME: " << file_name << std::endl;
-      std::fstream fs(file_name, std::fstream::out);
+      std::ofstream fs(file_name);
       fs << response.getBody();
+      fs.flush();
       fs.close();
     }catch (...){
       std::cerr << "Error Creating/Saving File" << std::endl;
