@@ -158,17 +158,23 @@ int main(int argc, char* argv[]){
     perror("recv");
     return 5;
   }
-
+  // Turn reponse into vector<char>
   std::vector<unsigned char> resp;
-  int j = 0;
-  while (buf[j]) {
-    resp.push_back(buf[j]);
-    j++;
-  }
-  //Turn Response Message into Response Object
+  resp.assign(buf, buf+strlen(buf));
+
+
+  std::cout << "Response...? : " << std::endl;
+  for (auto i = resp.begin(); i != resp.end(); i++)
+    std::cout << *i ;
+
+
+  //Turn Vector into Response Object
   int goodResponse = 0;
   HttpResponse response(resp);
+
+  std::cout << "CHECK1" << std::endl;
   if (response.getStatusCode() == OK){
+    std::cout << "CHECK" << std::endl;
     int len = atoi(response.getHeaderField(CONTENT_LENGTH).c_str());
     std::cout << "LENGTH: " << len << std::endl;
   }else if(response.getStatusCode() == BAD_REQUEST) {
