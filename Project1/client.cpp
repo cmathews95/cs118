@@ -12,6 +12,8 @@
 #include "HttpRequest.h"
 #include <netinet/in.h>
 #include <vector>
+#include "HttpMessage.h"
+#include "HttpResponse.h"
 
 struct connection_info{
   std::string hostname;
@@ -134,7 +136,7 @@ int main(int argc, char* argv[]){
   
   // send/receive data to/from connection
   std::string input;
-  char buf[100] = {0};
+  char buf[4096] = {0};
   std::stringstream ss;
 
   HttpRequest request(path, "GET");
@@ -152,11 +154,29 @@ int main(int argc, char* argv[]){
     return 4;
   }
 
-  if (recv(sockfd, buf, 100, 0) == -1) {
+  if (recv(sockfd, buf, 4096, 0) == -1) {
     perror("recv");
     return 5;
   }
-  
+
+  std::vector<unsigned char> resp;
+  int j = 0;
+  while (buf[j]) {
+    resp.push_back(buf[j]);
+    j++;
+  }
+  //Turn Response Message into Response Object
+  int goodResponse = 0;
+  HttpResponse response(resp);
+  if (response.getStatusCode() == OK){
+    int len = atoi(response.getHeaderField(CONTENT_LENGTH).c_str());
+    std::cout << "LENGTH: " << len << std::endl;
+  }else if(response.getStatusCode() == BAD_REQUEST) {
+    std::cerr << "Bad Request: " << response.getReasoning() << std::endl;
+  }else{
+    std::cerr << "Requested File Not Found" << std::endl;
+  }
+
   ss << buf << std::endl;
   std::cout << "RESPONSE: ";
   std::cout << buf << std::endl;
