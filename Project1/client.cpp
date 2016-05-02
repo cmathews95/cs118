@@ -170,9 +170,6 @@ int main(int argc, char* argv[]){
     int len = atoi(response.getHeaderField(CONTENT_LENGTH).c_str());
     std::cout << "LENGTH: " << len << std::endl;
     try{
-      std::fstream file;
-      std::string text;
-      
       std::string file_name = "";
       int e = strlen(path)-1;
       while(path[e]!='/')e--;
@@ -182,9 +179,9 @@ int main(int argc, char* argv[]){
 	e++;
       }
       std::cout << "FILE NAME: " << file_name << std::endl;
-      file.open(file_name);
-      file << response.getBody();
-      file.close();
+      std::fstream fs(file_name, std::fstream::out);
+      fs << response.getBody();
+      fs.close();
     }catch (...){
       std::cerr << "Error Creating/Saving File" << std::endl;
     }
