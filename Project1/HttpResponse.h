@@ -36,6 +36,7 @@ class HttpResponse : public HttpMessage
 
 
 std::string HttpResponse::toText(void) {
+  std::cout << "RESPONSE TOTEXT" << std::endl;
   std::string text = getVersion() + " " + statuscode + " " +reasoning +"\r\n";
   std::map<std::string,std::string> headerFields = getHeaderFields();
   for(std::map<std::string,std::string>::iterator iter = headerFields.begin(); iter != headerFields.end(); ++iter)

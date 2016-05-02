@@ -234,11 +234,11 @@ void threadFunc(int client_socketfd)
 
 	string respString = "";
 
-	for (int i = 0; i < vec.size(); i++)
+	for (int i = 0; i < respVec.size(); i++)
 
 	{
 
-		respString += vec[i];
+		respString += respVec[i];
 
 	}
 
