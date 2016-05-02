@@ -14,7 +14,7 @@
 #include <vector>
 #include "HttpMessage.h"
 #include "HttpResponse.h"
-
+#include <fstream>
 struct connection_info{
   std::string hostname;
   std::string port;
@@ -162,12 +162,6 @@ int main(int argc, char* argv[]){
   std::vector<unsigned char> resp;
   resp.assign(buf, buf+strlen(buf));
 
-
-  std::cout << "Response...? : " << std::endl;
-  for (auto i = resp.begin(); i != resp.end(); i++)
-    std::cout << *i ;
-
-
   //Turn Vector into Response Object
   int goodResponse = 0;
   HttpResponse response(resp);
@@ -175,12 +169,32 @@ int main(int argc, char* argv[]){
   if (response.getStatusCode().compare(OK)==0){
     int len = atoi(response.getHeaderField(CONTENT_LENGTH).c_str());
     std::cout << "LENGTH: " << len << std::endl;
+    try{
+      std::fstream file;
+      std::string text;
+      
+      std::string file_name = "";
+      int e = strlen(path)-1;
+      while(path[e]!='/')e--;
+      e++;
+      while(path[e]!='\0'){
+	file_name+=path[e];
+	e++;
+      }
+      std::cout << "FILE NAME: " << file_name << std::endl;
+      file.open(file_name);
+      file << response.getBody();
+      file.close();
+    }catch (...){
+      std::cerr << "Error Creating/Saving File" << std::endl;
+    }
   }else if(response.getStatusCode().compare(BAD_REQUEST)==0) {
     std::cerr << "Bad Request: " << response.getReasoning() << std::endl;
   }else{
     std::cerr << "Requested File Not Found" << std::endl;
   }
 
+  // Print Out Response
   ss << buf << std::endl;
   std::cout << "RESPONSE: ";
   std::cout << buf << std::endl;
