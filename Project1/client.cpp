@@ -162,12 +162,6 @@ int main(int argc, char* argv[]){
   std::vector<unsigned char> resp;
   resp.assign(buf, buf+strlen(buf));
 
-
-  std::cout << "Response...? : " << std::endl;
-  for (auto i = resp.begin(); i != resp.end(); i++)
-    std::cout << *i ;
-
-
   //Turn Vector into Response Object
   int goodResponse = 0;
   HttpResponse response(resp);
@@ -181,6 +175,7 @@ int main(int argc, char* argv[]){
     std::cerr << "Requested File Not Found" << std::endl;
   }
 
+  // Print Out Response
   ss << buf << std::endl;
   std::cout << "RESPONSE: ";
   std::cout << buf << std::endl;
