@@ -51,51 +51,6 @@ using namespace std;
 string _filedir, _port, _host;
 
 
-
-
-/*
-
-string hostname_to_ip(char *hostname)
-
-{
-
-char ipString[20]; // Allocated a little extra space. IP Addresses should be 15 characters long. 1 more for null byte.
-
-struct hostent *host = gethostbyname(hostname);
-
-if (host == NULL)
-
-{
-
-cout << "Error: Could not resolve host name." << endl;
-
-exit(1);
-
-}
-
-
-struct in_addr  **addresses = host->h_addr_list;
-
-int i = 0;
-
-while (addresses[i])
-
-{
-
-strcpy(ipString, inet_ntoa(*addresses[i]));
-
-}
-
-
-string ret = ipString;
-
-return ret;
-
-}
-
-*/
-
-
 void threadFunc(int client_socketfd)
 
 {
@@ -165,7 +120,6 @@ void threadFunc(int client_socketfd)
 
 
 	string code, reason, body;
-
 	// Response code referenced from https://developer.mozilla.org/en-US/docs/Web/HTTP/Response_codes
 
 	cout << "Preparing response." << endl;
@@ -184,7 +138,9 @@ void threadFunc(int client_socketfd)
 
 	{
 
-		int resp_fd = open((_filedir + req.getUrl()).substr(1).c_str(), O_RDONLY);
+	  int resp_fd = open((_filedir + req.getUrl()).c_str(), O_RDONLY);
+		
+		cout << "Looking for file " << (_filedir + req.getUrl()) << endl;
 
 		if (resp_fd < 0)
 
@@ -210,16 +166,16 @@ void threadFunc(int client_socketfd)
 
 			int resp_readStatus;
 
-
 			resp_readStatus = read(resp_fd, resp_buf, sizeof(resp_buf));
-
+			
+			cout << "Read " << resp_readStatus << " bytes." << endl;
 
 			if (resp_readStatus < 0)
 
 				cout << "Error: Failed to read from file." << endl;
 
 			body = resp_buf;
-
+			cout << "Body  was " << body.length()  << " bytes." << endl; 
 		}
 
 		close(resp_fd);
@@ -335,12 +291,12 @@ int main(int argc, char *argv[])
 
 	}
 
-	if (argc = 4)
+	if (argc == 4)
 
 	{
 
 		_filedir = argv[3];
-
+ 
 	}
 
 	if (argc > 4)
@@ -352,6 +308,9 @@ int main(int argc, char *argv[])
 		exit(2);
 
 	}
+
+
+	cout << "Initializing server with hostname= " << _host << ", port= " << _port << ", file directory= " << _filedir << endl;
 
 	// Initialize the server
 
