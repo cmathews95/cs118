@@ -25,7 +25,7 @@ class HttpResponse : public HttpMessage
   //setting Header fields
   
   char* toText(void);
-
+  std::string getHeaderText(void);
  private:
   std::string statuscode;
   std::string reasoning;
@@ -36,8 +36,7 @@ class HttpResponse : public HttpMessage
 
 };
 
-
-char* HttpResponse::toText(void) {
+std::string HttpResponse::getHeaderText(void) {
   std::string text = getVersion() + " " + statuscode + " " +reasoning +"\r\n";
   std::map<std::string,std::string> headerFields = getHeaderFields();
   for(std::map<std::string,std::string>::iterator iter = headerFields.begin(); iter != headerFields.end(); ++iter)
@@ -45,11 +44,19 @@ char* HttpResponse::toText(void) {
       text+= iter->first + ": " + iter->second + "\r\n";
     }
   text += "\r\n";
+  return text;
+}
+
+char* HttpResponse::toText(void) {
+
+  std::string text = getHeaderText();
+  
   std::cout << "About to memcpy the text data " << bodyLength << std::endl;
   char * rt = (char*) malloc(sizeof(char) * (text.length() + bodyLength+1));
   
 
   strcpy(rt,text.data());
+  
   if (body > 0) {
     std::cout << "Memcpying the body, which will be harder "<<bodyLength <<" " << strlen(body) << std::endl;
     memcpy(rt+text.length(),body,bodyLength);
@@ -61,6 +68,7 @@ char* HttpResponse::toText(void) {
 HttpResponse::HttpResponse(char * wire) : HttpMessage() {
   typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
   std::string s(wire);
+  std::cout << "What is the s: "<< s << std::endl;
   boost::char_separator<char> CRLF{"\r\n"};
   boost::char_separator<char> space{" "};
   body = 0;
@@ -69,8 +77,6 @@ HttpResponse::HttpResponse(char * wire) : HttpMessage() {
   statuscode="";
   std::string DCRLF = "\r\n\r\n";
   std::string str1 = s.substr(0,s.find(DCRLF));
-  
-
   tokenizer allLines{str1,CRLF};
   //std::cout <<"About to look at lines " << std::distance(allLines.begin(),allLines.end()) << "\n";
   for (tokenizer::iterator it = allLines.begin(); it != allLines.end(); ++it) {
@@ -112,7 +118,7 @@ HttpResponse::HttpResponse(char * wire) : HttpMessage() {
   if (map.find(HttpHeaderFieldsMap[CONTENT_LENGTH]) != map.end() ) {
     std::string str_ = map[HttpHeaderFieldsMap[CONTENT_LENGTH]];
     int contentLength = atoi(str_.c_str());
-    char * b = (char*) malloc(sizeof(char) * (DCRLF.length() + contentLength));
+    char * b = (char*) malloc(sizeof(char) *  (contentLength));
     memcpy(b,wire+str1.length()+DCRLF.length(),contentLength);
     body = b;
     bodyLength = contentLength;

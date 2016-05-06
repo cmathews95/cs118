@@ -1,7 +1,7 @@
 // server.cpp
 
 #include <sys/types.h>
-
+#include <fstream>
 #include <sys/socket.h>
 
 #include <netinet/in.h>
@@ -141,11 +141,10 @@ void threadFunc(int client_socketfd)
 
 	{
 
-	  int resp_fd = open((_filedir + req.getUrl()).c_str(), O_RDONLY);
-		
+	  FILE *fd = fopen((_filedir + req.getUrl()).c_str(), "rb");		
 	  cout << "Looking for file " << (_filedir + req.getUrl()) << endl;
 	  
-	  if (resp_fd < 0)
+	  if (fd == NULL)
 
 	    {
 	      
@@ -158,31 +157,24 @@ void threadFunc(int client_socketfd)
 	  else
 	    
 	    {
+	      
+	      code = OK;
+	      
+	      reason = "Request okay.";
+	      fseek(fd, 0, SEEK_END); // seek to end of file
+	      long size = ftell(fd); // get current file pointer
+	      fseek(fd, 0, SEEK_SET);
 
-		  code = OK;
-		  
-		  reason = "Request okay.";
-		  int size = sizeof(char) * MAXBUFLEN;
-		  char* resp_buf  = (char*)malloc(size);
-		  int resp_readStatus=0;
-		  long read_so_far=0;
-		  while ((resp_readStatus = read(resp_fd, resp_buf+read_so_far, MAXBUFLEN)) > 0) {
-		    read_so_far += resp_readStatus;
-		    if (read_so_far+MAXBUFLEN > size) {
-		      size = size * size;
-		      resp_buf = (char*)realloc(resp_buf,size);
-		    }
-		  }
-		  
-		  if (resp_readStatus < 0)
-		    cout << "Error: Failed to read from file." << endl;
-		  body = resp_buf;
-		  bodyLength = read_so_far;
-			
-			cout << "Body  was "<< bodyLength  << " bytes." << endl; 
-		}
-	  
-	  close(resp_fd);
+	      char * resp_buf = (char *)malloc(size * sizeof(char));
+	      int resp_readStatus = fread(resp_buf,size,1,fd);
+	      fclose(fd);
+	      if (resp_readStatus < 0)
+		cout << "Error: Failed to read from file." << endl;
+	      body = resp_buf;
+	      bodyLength = size;
+	      
+	      cout << "Body  was "<< bodyLength  << " bytes." << endl; 
+	    }
 	  
 	}
 	
@@ -192,11 +184,16 @@ void threadFunc(int client_socketfd)
 	
 	char* respVec = resp.encode();
 	
-
+	std::fstream fs("out", std::fstream::out | std::fstream::binary);
+      // std::ofstream fs(file_name);
+	fs.write(respVec, bodyLength);
+      //fs << response.getBody();
+	fs.flush();
+	fs.close();
 	cout << "Response: " << respVec << endl;
 	
 	
-	int responseStatus = send(client_socketfd, respVec, strlen(respVec), 0);
+	int responseStatus = send(client_socketfd, respVec, bodyLength+resp.getHeaderText().length(), 0);
 	if (body > 0)
 	  free(body);
 	free(respVec);

@@ -175,7 +175,6 @@ int main(int argc, char* argv[]){
   //Turn Vector into Response Object
   int goodResponse = 0;
   HttpResponse response(buf);
-  std::cout << "What do I have here? : " << response.getBodyLength() << std::endl;
   if (response.getStatusCode().compare(OK)==0){
     int len = atoi(response.getHeaderField(CONTENT_LENGTH).c_str());
     std::cout << "LENGTH: " << len << std::endl;
