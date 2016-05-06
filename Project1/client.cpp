@@ -84,7 +84,7 @@ int main(int argc, char* argv[]){
     std::cerr << "Not Enough Arguments...Pass in URL" << std::endl;
     return 1;
   }
-  std::cout << "Resource URL: " << argv[1] << std::endl;
+  //std::cout << "Resource URL: " << argv[1] << std::endl;
 
   // Parse URL
   const char * host;
@@ -139,14 +139,14 @@ int main(int argc, char* argv[]){
   // send/receive data to/from connection
   std::string input;
   std::stringstream ss;
-  std::cout << "size matters" << std::endl;
+  //std::cout << "size matters" << std::endl;
   HttpRequest request(path, "GET");
   request.setHeaderField(HOST, host);
   request.setConnection(CLOSE);
   char* req  = request.encode();
   
 
-  std::cout << "REQUEST: " << req << std::endl;
+  //std::cout << "REQUEST: " << req << std::endl;
   
   if (send(sockfd, req, strlen(req), 0) == -1) {
     perror("send");
@@ -177,7 +177,7 @@ int main(int argc, char* argv[]){
   HttpResponse response(buf);
   if (response.getStatusCode().compare(OK)==0){
     int len = atoi(response.getHeaderField(CONTENT_LENGTH).c_str());
-    std::cout << "LENGTH: " << len << std::endl;
+    //std::cout << "LENGTH: " << len << std::endl;
     try{
       std::string file_name = "";
       int e = strlen(path)-1;
@@ -187,7 +187,7 @@ int main(int argc, char* argv[]){
 	file_name+=path[e];
 	e++;
       }
-      std::cout << "FILE NAME: " << file_name << std::endl;
+      //std::cout << "FILE NAME: " << file_name << std::endl;
       std::fstream fs(file_name, std::fstream::out | std::fstream::binary);
       // std::ofstream fs(file_name);
       fs.write(response.getBody(), len);
