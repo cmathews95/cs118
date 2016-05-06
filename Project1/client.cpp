@@ -15,7 +15,7 @@
 #include "HttpMessage.h"
 #include "HttpResponse.h"
 #include <fstream>
-const int MESSAGE_SIZE = 1000000;
+const int BUFF_SIZE = 4096;
 
 struct connection_info{
   std::string hostname;
@@ -138,7 +138,6 @@ int main(int argc, char* argv[]){
   
   // send/receive data to/from connection
   std::string input;
-  char* buf = new char[MESSAGE_SIZE];
   std::stringstream ss;
   std::cout << "size matters" << std::endl;
   HttpRequest request(path, "GET");
@@ -156,19 +155,31 @@ int main(int argc, char* argv[]){
     return 4;
   }
   
-  if (recv(sockfd, buf, MESSAGE_SIZE, 0) == -1) {
+  long size = sizeof(char)*2*BUFF_SIZE;
+  long read_so_far = 0;
+  char* buf = (char*)malloc(size);
+  int read = 0;
+  int rv = 0;
+  while ((rv=recv(sockfd, buf+read_so_far, BUFF_SIZE, 0)) > 0) {
+    read_so_far += rv;
+    if (read_so_far+BUFF_SIZE > size) {
+      size = size * size;
+      buf = (char*)realloc(buf,size);
+    }
+  }
+  if (rv == -1) {
     perror("recv");
     return 5;
   }
 
   // Turn reponse into vector<char>
   std::vector<unsigned char> resp;
-  resp.assign(buf, buf+strlen(buf));
+  resp.assign(buf, buf+read_so_far);
 
   //Turn Vector into Response Object
   int goodResponse = 0;
   HttpResponse response(resp);
-
+  
   if (response.getStatusCode().compare(OK)==0){
     int len = atoi(response.getHeaderField(CONTENT_LENGTH).c_str());
     std::cout << "LENGTH: " << len << std::endl;
@@ -195,10 +206,7 @@ int main(int argc, char* argv[]){
     std::cerr << "Requested File Not Found" << std::endl;
   }
 
-  // Print Out Response
-  ss << buf << std::endl;
-  std::cout << "RESPONSE: ";
-  std::cout << buf << std::endl;
+  free(buf);
 
   close(sockfd);
   return 0;
