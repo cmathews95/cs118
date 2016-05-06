@@ -119,8 +119,8 @@ void threadFunc(int client_socketfd)
 	cout << "Created a request from the vector." << endl;
 
 
-	string code, reason;
-	char * body;
+	string code(""), reason("");
+	char * body = 0;
 	int bodyLength=0;
 
 	// Response code referenced from https://developer.mozilla.org/en-US/docs/Web/HTTP/Response_codes
@@ -143,59 +143,59 @@ void threadFunc(int client_socketfd)
 
 	  int resp_fd = open((_filedir + req.getUrl()).c_str(), O_RDONLY);
 		
-		cout << "Looking for file " << (_filedir + req.getUrl()) << endl;
+	  cout << "Looking for file " << (_filedir + req.getUrl()) << endl;
+	  
+	  if (resp_fd < 0)
 
-		if (resp_fd < 0)
-
+	    {
+	      
+	      code = NOT_FOUND;
+	      
+	      reason = "Page not found.";
+	      
+	    }
+	  
+	  else
+	    
 		{
 
-			code = NOT_FOUND;
-
-			reason = "Page not found.";
-
-		}
-
-		else
-
-		{
-
-			code = OK;
-
-			reason = "Request okay.";
-			int size = sizeof(char) * MAXBUFLEN;
-			char* resp_buf  = (char*)malloc(size);
-			int resp_readStatus;
-			long read_so_far;
-			while ((resp_readStatus = read(resp_fd, resp_buf+read_so_far, MAXBUFLEN)) > 0) {
-			  read_so_far += resp_readStatus;
-			  if (read_so_far+MAXBUFLEN > size) {
-			    size = size * size;
-			    resp_buf = (char*)realloc(resp_buf,size);
-			  }
-			}
-			
-			if (resp_readStatus < 0)
-				cout << "Error: Failed to read from file." << endl;
-			body = resp_buf;
-			bodyLength = read_so_far;
+		  code = OK;
+		  
+		  reason = "Request okay.";
+		  int size = sizeof(char) * MAXBUFLEN;
+		  char* resp_buf  = (char*)malloc(size);
+		  int resp_readStatus=0;
+		  long read_so_far=0;
+		  while ((resp_readStatus = read(resp_fd, resp_buf+read_so_far, MAXBUFLEN)) > 0) {
+		    read_so_far += resp_readStatus;
+		    if (read_so_far+MAXBUFLEN > size) {
+		      size = size * size;
+		      resp_buf = (char*)realloc(resp_buf,size);
+		    }
+		  }
+		  
+		  if (resp_readStatus < 0)
+		    cout << "Error: Failed to read from file." << endl;
+		  body = resp_buf;
+		  bodyLength = read_so_far;
 			
 			cout << "Body  was "<< bodyLength  << " bytes." << endl; 
 		}
-
-		close(resp_fd);
-
+	  
+	  close(resp_fd);
+	  
 	}
-
+	
 	HttpResponse resp(code, reason, body,bodyLength);
-
+	
 	resp.setHeaderField(CONTENT_LENGTH,to_string(bodyLength));
-
+	
 	char* respVec = resp.encode();
-
+	
 
 	cout << "Response: " << respVec << endl;
-
-
+	
+	
 	int responseStatus = send(client_socketfd, respVec, strlen(respVec), 0);
 	if (body > 0)
 	  free(body);
