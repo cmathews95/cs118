@@ -121,7 +121,7 @@ void threadFunc(int client_socketfd)
 
 	string code, reason;
 	char * body;
-
+	int bodyLength=0;
 
 	// Response code referenced from https://developer.mozilla.org/en-US/docs/Web/HTTP/Response_codes
 
@@ -162,31 +162,33 @@ void threadFunc(int client_socketfd)
 			code = OK;
 
 			reason = "Request okay.";
-
-			char resp_buf[MAXBUFLEN+1];
-
-			memset(resp_buf, '\0', sizeof(resp_buf));
-
+			int size = sizeof(char) * MAXBUFLEN;
+			char* resp_buf  = (char*)malloc(size);
 			int resp_readStatus;
-
-			resp_readStatus = read(resp_fd, resp_buf, sizeof(resp_buf));
-			resp_buf[MAXBUFLEN] = '\0';
-
+			long read_so_far;
+			while ((resp_readStatus = read(resp_fd, resp_buf+read_so_far, MAXBUFLEN)) > 0) {
+			  read_so_far += resp_readStatus;
+			  if (read_so_far+MAXBUFLEN > size) {
+			    size = size * size;
+			    resp_buf = (char*)realloc(resp_buf,size);
+			  }
+			}
+			
 			if (resp_readStatus < 0)
-
 				cout << "Error: Failed to read from file." << endl;
 
 			body = resp_buf;
-			cout << "Body  was " << strlen(body)  << " bytes." << endl; 
+			bodyLength = read_so_far;
+			cout << "Body  was "<< bodyLength  << " bytes." << endl; 
 		}
 
 		close(resp_fd);
 
 	}
 
-	HttpResponse resp(code, reason, body,strlen(body));
+	HttpResponse resp(code, reason, body,bodyLength);
 
-	resp.setHeaderField(CONTENT_LENGTH,to_string(strlen(body)));
+	resp.setHeaderField(CONTENT_LENGTH,to_string(bodyLength));
 
 	char* respVec = resp.encode();
 
