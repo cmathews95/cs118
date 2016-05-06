@@ -11,31 +11,33 @@ const std::string NOT_FOUND = "404";
 class HttpResponse : public HttpMessage
 {
  public:
- HttpResponse(std::string _code, std::string _reason, std::string _body) : HttpMessage(),statuscode(_code),reasoning(_reason),body(_body) {}
-   HttpResponse(std::vector<unsigned char> wire);
-
+ HttpResponse(std::string _code, std::string _reason, char * _body,int _bodyLength) : HttpMessage(),statuscode(_code),reasoning(_reason),body(_body),bodyLength(_bodyLength),deallocFlag(0) {}
+   HttpResponse(char * wire);
+   ~HttpResponse() {if (deallocFlag) free(body);}
   std::string getStatusCode(void) const { return statuscode; }
   void setStatusCode(std::string _code) { statuscode=_code; }
   std::string getReasoning(void) const { return reasoning; }
   void setReasoning(std::string r) { reasoning = r; }
-  std::string getBody(void) const { return body; }
-  void setBody(std::string b) { body=b; }
+  char* getBody(void) const { return body; }
+  int getBodyLength(void) const {return bodyLength;}
+  void setBody(char*  b,int length) { body=b; bodyLength = length;}
   
   //setting Header fields
   
-  std::string toText(void);
-
+  char* toText(void);
 
  private:
   std::string statuscode;
   std::string reasoning;
-  std::string body;
-  std::map<std::string,std::string> headerFields;
+   char * body;
+   int bodyLength;
+  
+   int deallocFlag;
 
 };
 
 
-std::string HttpResponse::toText(void) {
+char* HttpResponse::toText(void) {
   std::string text = getVersion() + " " + statuscode + " " +reasoning +"\r\n";
   std::map<std::string,std::string> headerFields = getHeaderFields();
   for(std::map<std::string,std::string>::iterator iter = headerFields.begin(); iter != headerFields.end(); ++iter)
@@ -43,29 +45,30 @@ std::string HttpResponse::toText(void) {
       text+= iter->first + ": " + iter->second + "\r\n";
     }
   text += "\r\n";
-  text += body;
-  return text;
+  char * rt = (char*) malloc(sizeof(char) * (text.length() + bodyLength+1));
+  std::cout << "About to memcpy the text data" << std::endl;
+
+  strcpy(rt,text.data());
+  std::cout << "Memcpying the body, which will be harder "<<bodyLength <<" " << strlen(body) << std::endl;
+  memcpy(rt+text.length(),body,bodyLength);
+  rt[text.length()+bodyLength]='\0';
+  return rt;
 }
 
-HttpResponse::HttpResponse(std::vector<unsigned char> wire) : HttpMessage() {
+HttpResponse::HttpResponse(char * wire) : HttpMessage() {
   typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
-  std::string s(wire.begin(),wire.end());
+  std::string s(wire);
   boost::char_separator<char> CRLF{"\r\n"};
   boost::char_separator<char> space{" "};
-  body = "";
+  body = 0;
+  deallocFlag = 1;
   reasoning="";
   statuscode="";
   std::string DCRLF = "\r\n\r\n";
   std::string str1 = s.substr(0,s.find(DCRLF));
-  std::string str2 = s.substr(s.find(DCRLF));
+  
 
   tokenizer allLines{str1,CRLF};
-  if (str2.length() > 0) {
-        str2.erase(str2.find(DCRLF),DCRLF.length());
-	//std::cout << "Looking at body: "<< str2 << "\n";
-
-    body = str2;
-  }
   //std::cout <<"About to look at lines " << std::distance(allLines.begin(),allLines.end()) << "\n";
   for (tokenizer::iterator it = allLines.begin(); it != allLines.end(); ++it) {
     if (it == allLines.begin()) {
@@ -102,7 +105,16 @@ HttpResponse::HttpResponse(std::vector<unsigned char> wire) : HttpMessage() {
       }
     }
   }
-    
+   std::map<std::string,std::string>  map = getHeaderFields();
+  if (map.find(HttpHeaderFieldsMap[CONTENT_LENGTH]) != map.end() ) {
+    std::string str_ = map[HttpHeaderFieldsMap[CONTENT_LENGTH]];
+    int contentLength = atoi(str_.c_str());
+    char * b = (char*) malloc(sizeof(char) * (DCRLF.length() + contentLength));
+    memcpy(b,wire+str1.length()+DCRLF.length(),contentLength);
+    body = b;
+    bodyLength = contentLength;
+    deallocFlag = 1;
+  }
 }
 
 #endif

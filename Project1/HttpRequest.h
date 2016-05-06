@@ -31,7 +31,7 @@ class HttpRequest : public HttpMessage
   
   //setting Header fields
   //setting the Connection, a specific header
-  std::string toText(void);
+  char* toText(void);
 
 
  private:
@@ -78,14 +78,14 @@ HttpRequest::HttpRequest(std::vector<unsigned char> wire) : HttpMessage() {
 
 
 
-std::string HttpRequest::toText(void) {
+char* HttpRequest::toText(void) {
   std::string text = method + " " + url + " " + HttpVersionToken+"\r\n";
   std::map<std::string,std::string> map = getHeaderFields();
   for(std::map<std::string,std::string>::iterator iter = map.begin(); iter != map.end(); iter++)
     {
       text+= iter->first + ": " + iter->second + "\r\n";
     }
-  return text;
+  return (char*)text.data();
 }
 
 

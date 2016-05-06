@@ -164,7 +164,8 @@ void threadFunc(int client_socketfd)
 	cout << "Created a request from the vector." << endl;
 
 
-	string code, reason, body;
+	string code, reason;
+	char * body;
 
 	// Response code referenced from https://developer.mozilla.org/en-US/docs/Web/HTTP/Response_codes
 
@@ -204,7 +205,7 @@ void threadFunc(int client_socketfd)
 
 			reason = "Request okay.";
 
-			char resp_buf[MAXBUFLEN];
+			char resp_buf[MAXBUFLEN+1];
 
 			memset(resp_buf, '\0', sizeof(resp_buf));
 
@@ -212,7 +213,7 @@ void threadFunc(int client_socketfd)
 
 
 			resp_readStatus = read(resp_fd, resp_buf, sizeof(resp_buf));
-
+			resp_buf[MAXBUFLEN] = '\0';
 
 			if (resp_readStatus < 0)
 
@@ -226,27 +227,18 @@ void threadFunc(int client_socketfd)
 
 	}
 
-	HttpResponse resp(code, reason, body);
+	HttpResponse resp(code, reason, body,strlen(body));
 
-	resp.setHeaderField(CONTENT_LENGTH, to_string(body.length()));
+	resp.setHeaderField(CONTENT_LENGTH,to_string(strlen(body)));
 
-	vector<unsigned char> respVec = resp.encode();
-
-	string respString = "";
-
-	for (int i = 0; i < respVec.size(); i++)
-
-	{
-
-		respString += respVec[i];
-
-	}
-
-	cout << "Response: " << respString << endl;
+	char* respVec = resp.encode();
 
 
-	int responseStatus = send(client_socketfd, respString.c_str(), respString.length(), 0);
+	cout << "Response: " << respVec << endl;
 
+
+	int responseStatus = send(client_socketfd, respVec, strlen(respVec), 0);
+	free(respVec);
 	if (responseStatus < 0)
 
 	{

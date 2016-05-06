@@ -24,12 +24,12 @@ class HttpMessage
 
   void setHeaderField(HttpHeaderFields key, std::string value) { headerFields[(HttpHeaderFieldsMap[key])]=value; }
   std::string getHeaderField(HttpHeaderFields key) { return headerFields[(HttpHeaderFieldsMap[key])]; }
-  std::vector<unsigned char> encode(void) {  std::vector<unsigned char> wire;   const char * data = toText().data();   int length = strlen(data);   wire.assign(data,data+length);  return wire;}
+  char*  encode(void) {  return toText(); }
 
     void setConnection(HttpConnectionField conn) { setHeaderField(CONNECTION,(conn==KEEP_ALIVE?std::string("keep-alive"):std::string("close"))); }
 
 
-  virtual std::string toText(void)=0;
+  virtual char* toText(void)=0;
  protected:
   std::map<std::string,std::string> getHeaderFields(void) {return headerFields;}
  private:

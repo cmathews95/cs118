@@ -1,22 +1,24 @@
 #include "HttpResponse.h"
 #include <iostream>
-
+#include <cstdlib>
 using namespace std;
 
 int main() {
-  HttpResponse response("200","","This is what you wanted right?");
-  response.setHeaderField(CONTENT_LENGTH,"32");
+  char * s = "This is what you wanted right?";
+  HttpResponse response("200","",s,strlen(s));
+  std::cout << "what?: " << strlen(s) << std::endl;
+  response.setHeaderField(CONTENT_LENGTH,to_string(strlen(s)));
   response.setHeaderField(FROM,"localhost");
   response.setConnection(CLOSE);
   cout<< "I created the object, about to encode it!" << "\n";
-  vector<unsigned char> vec = response.encode();
+  char* vec = response.encode();
   cout << "About to decode" << "\n";
   HttpResponse response2(vec);
   response2.setHeaderField(DATE,"date");
   cout << "Encoding again!" << "\n";
   vec = response2.encode();
-
-  for (int i = 0; i < vec.size(); i++)
+  int i;
+  for (i = 0; i < strlen(vec); i++)
     std::cout << ' ' <<  vec[i];
   std::cout << "\n";
   

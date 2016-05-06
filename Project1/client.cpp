@@ -143,14 +143,12 @@ int main(int argc, char* argv[]){
   HttpRequest request(path, "GET");
   request.setHeaderField(HOST, host);
   request.setConnection(CLOSE);
-  std::vector<unsigned char> vec = request.encode();
+  char* req  = request.encode();
   
-  std::string req = "";
-  for(int i = 0; i < vec.size(); i++)
-    req+=vec[i];
+
   std::cout << "REQUEST: " << req << std::endl;
   
-  if (send(sockfd, req.c_str(), req.length(), 0) == -1) {
+  if (send(sockfd, req, strlen(req), 0) == -1) {
     perror("send");
     return 4;
   }
@@ -173,12 +171,10 @@ int main(int argc, char* argv[]){
   }
 
   // Turn reponse into vector<char>
-  std::vector<unsigned char> resp;
-  resp.assign(buf, buf+read_so_far);
 
   //Turn Vector into Response Object
   int goodResponse = 0;
-  HttpResponse response(resp);
+  HttpResponse response(buf);
   
   if (response.getStatusCode().compare(OK)==0){
     int len = atoi(response.getHeaderField(CONTENT_LENGTH).c_str());
