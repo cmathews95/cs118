@@ -14,9 +14,9 @@ web-server : server.cpp $(HEADERS)
 
 dist : project1-$(USER).tar.gz
 
-lab1-$(USER).tar.gz : client.cpp server.cpp $(HEADERS) Makefile 
+project1-$(USER).tar.gz : client.cpp server.cpp $(HEADERS) Makefile 
 	make clean
 	tar -cvf $@ * 
 
 clean:
-	rm -f  web-client web-server test *~
+	rm -f  web-client web-server test *~ *.tar.gz
