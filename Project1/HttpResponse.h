@@ -51,14 +51,12 @@ char* HttpResponse::toText(void) {
 
   std::string text = getHeaderText();
   
-  std::cout << "About to memcpy the text data " << bodyLength << std::endl;
   char * rt = (char*) malloc(sizeof(char) * (text.length() + bodyLength+1));
   
 
   strcpy(rt,text.data());
   
   if (body > 0) {
-    std::cout << "Memcpying the body, which will be harder "<<bodyLength <<" " << strlen(body) << std::endl;
     memcpy(rt+text.length(),body,bodyLength);
   }
   rt[text.length()+bodyLength]='\0';
@@ -68,7 +66,6 @@ char* HttpResponse::toText(void) {
 HttpResponse::HttpResponse(char * wire) : HttpMessage() {
   typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
   std::string s(wire);
-  std::cout << "What is the s: "<< s << std::endl;
   boost::char_separator<char> CRLF{"\r\n"};
   boost::char_separator<char> space{" "};
   body = 0;
@@ -98,7 +95,6 @@ HttpResponse::HttpResponse(char * wire) : HttpMessage() {
       }
     }
     else {
-      //      std::cout << "Looking at other header lines" << "\n";
       std::string::size_type pos = (*it).find(" ");
       if (pos > 0) {
 	std::string first = (*it).substr(0,pos);

@@ -55,7 +55,6 @@ void threadFunc(int client_socketfd)
 
 {
 
-	cout << "In child process." << endl;
 
 	//		close(socketfd); // Don't want to be accepting a new connection while in the child process
 
@@ -63,12 +62,9 @@ void threadFunc(int client_socketfd)
 
 	memset(&buf, '\0', sizeof(buf));
 
-	cout << "Created buffer." << endl;
-
 
 	int readStatus = read(client_socketfd, buf, sizeof(buf));
 
-	cout << "Read Status: " << readStatus << endl;
 
 	if (readStatus < 0)
 
@@ -76,7 +72,7 @@ void threadFunc(int client_socketfd)
 
 		close(client_socketfd);
 
-		cout << "Error: Failed to read client request." << endl;
+		cerr << "Error: Failed to read client request." << endl;
 
 		exit(8);
 
@@ -100,8 +96,6 @@ void threadFunc(int client_socketfd)
 
 	vector<unsigned char> vec;
 
-	cout << "Created Vector: " << endl;
-
 	while (buf[i])
 
 	{
@@ -112,11 +106,8 @@ void threadFunc(int client_socketfd)
 
 	}
 
-	cout << "Creating a request from the vector." << endl;
 
 	HttpRequest req(vec);
-
-	cout << "Created a request from the vector." << endl;
 
 
 	string code(""), reason("");
@@ -169,11 +160,10 @@ void threadFunc(int client_socketfd)
 	      int resp_readStatus = fread(resp_buf,size,1,fd);
 	      fclose(fd);
 	      if (resp_readStatus < 0)
-		cout << "Error: Failed to read from file." << endl;
+		cerr << "Error: Failed to read from file." << endl;
 	      body = resp_buf;
 	      bodyLength = size;
 	      
-	      cout << "Body  was "<< bodyLength  << " bytes." << endl; 
 	    }
 	  
 	}
@@ -184,16 +174,9 @@ void threadFunc(int client_socketfd)
 	
 	char* respVec = resp.encode();
 	
-	std::fstream fs("out", std::fstream::out | std::fstream::binary);
-      // std::ofstream fs(file_name);
-	fs.write(respVec, bodyLength);
-      //fs << response.getBody();
-	fs.flush();
-	fs.close();
-	cout << "Response: " << respVec << endl;
-	
 	
 	int responseStatus = send(client_socketfd, respVec, bodyLength+resp.getHeaderText().length(), 0);
+	cout <<"Wrote a response to the client, close connection next"<< endl;
 	if (body > 0)
 	  free(body);
 	free(respVec);
@@ -201,7 +184,7 @@ void threadFunc(int client_socketfd)
 
 	{
 
-		cout << "Error: Failed to send response back to client." << endl;
+		cerr << "Error: Failed to send response back to client." << endl;
 
 		exit(10);
 
@@ -321,7 +304,7 @@ int main(int argc, char *argv[])
 
 	{
 
-		cout << "Error: Failed to open a socket." << endl;
+		cerr << "Error: Failed to open a socket." << endl;
 
 		exit(3);
 
@@ -350,7 +333,7 @@ int main(int argc, char *argv[])
 
 		close(socketfd);
 
-		cout << "Error: Failed to bind socket to address." << endl;
+		cerr << "Error: Failed to bind socket to address." << endl;
 
 		exit(4);
 
@@ -371,7 +354,7 @@ int main(int argc, char *argv[])
 
 		close(socketfd);
 
-		cout << "Error: Failed to listen for requests." << endl;
+		cerr << "Error: Failed to listen for requests." << endl;
 
 		exit(5);
 
@@ -404,7 +387,7 @@ int main(int argc, char *argv[])
 
 			close(client_socketfd);
 
-			cout << "Error: Failed to accept connection with client." << endl;
+			cerr << "Error: Failed to accept connection with client." << endl;
 
 			exit(6);
 
