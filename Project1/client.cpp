@@ -189,8 +189,10 @@ int main(int argc, char* argv[]){
 	e++;
       }
       std::cout << "FILE NAME: " << file_name << std::endl;
-      std::ofstream fs(file_name);
-      fs << response.getBody();
+      std::fstream fs(file_name, std::fstream::out | std::fstream::binary);
+      // std::ofstream fs(file_name);
+      fs.write(response.getBody(), len);
+      //fs << response.getBody();
       fs.flush();
       fs.close();
     }catch (...){
