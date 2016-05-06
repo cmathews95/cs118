@@ -45,12 +45,15 @@ char* HttpResponse::toText(void) {
       text+= iter->first + ": " + iter->second + "\r\n";
     }
   text += "\r\n";
+  std::cout << "About to memcpy the text data " << bodyLength << std::endl;
   char * rt = (char*) malloc(sizeof(char) * (text.length() + bodyLength+1));
-  std::cout << "About to memcpy the text data" << std::endl;
+  
 
   strcpy(rt,text.data());
-  std::cout << "Memcpying the body, which will be harder "<<bodyLength <<" " << strlen(body) << std::endl;
-  memcpy(rt+text.length(),body,bodyLength);
+  if (body > 0) {
+    std::cout << "Memcpying the body, which will be harder "<<bodyLength <<" " << strlen(body) << std::endl;
+    memcpy(rt+text.length(),body,bodyLength);
+  }
   rt[text.length()+bodyLength]='\0';
   return rt;
 }
