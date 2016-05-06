@@ -16,7 +16,7 @@ dist : project1-$(USER).tar.gz
 
 project1-$(USER).tar.gz : client.cpp server.cpp $(HEADERS) Makefile 
 	make clean
-	tar -cvf $@ * 
+	tar -cvzf $@ * 
 
 clean:
 	rm -f  web-client web-server test *~ *.tar.gz
