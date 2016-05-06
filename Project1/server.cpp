@@ -176,9 +176,9 @@ void threadFunc(int client_socketfd)
 			
 			if (resp_readStatus < 0)
 				cout << "Error: Failed to read from file." << endl;
-
 			body = resp_buf;
 			bodyLength = read_so_far;
+			
 			cout << "Body  was "<< bodyLength  << " bytes." << endl; 
 		}
 
@@ -197,6 +197,8 @@ void threadFunc(int client_socketfd)
 
 
 	int responseStatus = send(client_socketfd, respVec, strlen(respVec), 0);
+	if (body > 0)
+	  free(body);
 	free(respVec);
 	if (responseStatus < 0)
 
