@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <signal.h>
 #include <unistd.h>
 #include <iostream>
 #include <sstream>
@@ -15,12 +16,72 @@
 using namespace std;
 
 const int BUFF_SIZE = 4096;
-int sockfd;
+int socketfd;
+int Connection = 0;
+
+// Struct for urlScraper Function
 struct connection_info{
   string hostname;
   string port;
   string obj_path;
 };
+
+// Scrape Command Line Arguments and return struct
+connection_info* urlScraper(char* url);
+// Catch Singlas: If ^C, exit gracefully by closing socket
+void signalHandler(int signal);
+// Resole Hostname into IP (Simple DNS Lookup)
+string dns(const char* hostname, const char* port);
+
+int main(int argc, char* argv[]){
+  // Check Arguments
+  if(argc <= 1) {
+    cerr << "Not Enough Arguments...Pass in URL" << endl;
+    return 1;
+  }
+
+  // Parse URL
+  const char * host;
+  const char * port;
+  const char * path;
+  const char * ipaddress;
+  try {
+    connection_info* req_data = urlScraper(argv[1]);
+    if (req_data == NULL) {
+      cerr << "Logic Error...\nClient Closing" << endl;
+      exit(1);
+    }
+    cout << "Host Name: " <<  req_data->hostname << endl;
+    cout << "Port: " <<  req_data->port << endl;
+    cout << "Path: " <<  req_data->obj_path << endl;
+    // Host & Port & path to CStrings
+    host = req_data->hostname.c_str();
+    port = req_data->port.c_str();
+    path = req_data->obj_path.c_str();
+    
+    ipaddress = dns(host, port).c_str();
+    cout << "IP ADDRESS: " << ipaddress << endl;
+  }
+  catch (...) {
+    cerr << "Improperly formatted request" << endl;
+    return 1;
+  }
+
+  // Create UDP Socket
+  socketfd = socket(AF_INET, SOCK_DGRAM, 0);
+  Connection = 1;
+
+  // Setup to Send Packets to Server
+  struct sockaddr_in serverAddr;
+  serverAddr.sin_family = AF_INET;
+  serverAddr.sin_port = htons(atoi(port));
+  serverAddr.sin_addr.s_addr = inet_addr(ipaddress);
+  memset(serverAddr.sin_zero, '\0', sizeof(serverAddr.sin_zero));
+
+  close(socketfd);
+  Connection = 0;
+  return 0;
+}
 
 connection_info* urlScraper(char* url) {
   if(strlen(url) <=7)
@@ -77,62 +138,11 @@ string dns(const char* hostname, const char* port){
   return NULL;
 }
 
-int main(int argc, char* argv[]){
-  // Check Arguments
-  if(argc <= 1) {
-    cerr << "Not Enough Arguments...Pass in URL" << endl;
-    return 1;
+void signalHandler(int signal){
+  if(signal == SIGINT) {
+    cerr << "\nReceived SIGINT...\nServer Closing..." << endl;
+    if(Connection)
+      close(socketfd);
+    Connection = 0;
   }
-
-  // Parse URL
-  const char * host;
-  const char * port;
-  const char * path;
-  const char * ipaddress;
-  try {
-    connection_info* req_data = urlScraper(argv[1]);
-    if (req_data == NULL) {
-      cerr << "Logic Error...\nClient Closing" << endl;
-      exit(1);
-    }
-    cout << "Host Name: " <<  req_data->hostname << endl;
-    cout << "Port: " <<  req_data->port << endl;
-    cout << "Path: " <<  req_data->obj_path << endl;
-    // Host & Port & path to CStrings
-    host = req_data->hostname.c_str();
-    port = req_data->port.c_str();
-    path = req_data->obj_path.c_str();
-    
-    ipaddress = dns(host, port).c_str();
-    cout << "IP ADDRESS: " << ipaddress << endl;
-  }
-  catch (...) {
-    cerr << "Improperly formatted request" << endl;
-    return 1;
-  }
-
-  // Create UDP Socket
-  sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-  
-  // Setup to Send Packets to Server
-  struct sockaddr_in serverAddr;
-  serverAddr.sin_family = AF_INET;
-  serverAddr.sin_port = htons(atoi(port));
-  serverAddr.sin_addr.s_addr = inet_addr(ipaddress);
-  memset(serverAddr.sin_zero, '\0', sizeof(serverAddr.sin_zero));
-
-  struct sockaddr_in clientAddr;
-  socklen_t clientAddrLen = sizeof(clientAddr);
-  if (getsockname(sockfd, (struct sockaddr *)&clientAddr, &clientAddrLen) == -1) {
-    perror("getsockname");
-    return 3;
-  } 
-
-  char ipstr[INET_ADDRSTRLEN] = {'\0'};
-  inet_ntop(clientAddr.sin_family, &clientAddr.sin_addr, ipstr, sizeof(ipstr));
-  std::cout << "Send Packets From: " << ipstr << ":" <<
-    ntohs(clientAddr.sin_port) << std::endl;
-
-  close(sockfd);
-  return 0;
 }
