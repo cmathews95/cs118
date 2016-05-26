@@ -15,7 +15,7 @@
 
 using namespace std;
 
-
+int MAX_PACKET_SIZE = 1032; 
 
 
 string dns(const char* hostname, const char* port);
@@ -60,35 +60,18 @@ int main(int argc, char* argv[]) {
     cerr << "Error Binding Socket to Address...\nServer Closing..." << endl;
     exit(2);
   } 
-
-  cout << "Listening for Connection..." << endl;
-  
-  int listenStatus;
-  if ( (listenStatus = listen(socketfd,0)) < 0) {
-    cerr << "Error Listening for Requests...\nServer Closing..." << endl;
-    close(socketfd);
-    exit(3);
-  }
   
   while(1) {
-    struct sockaddr_in client_address;
-    socklen_t client_address_size = sizeof(client_address);
-    int client_socketfd;
-    if ( (client_socketfd = accept(socketfd, (struct sockaddr*)&client_address, &client_address_size)) < 0) {
-      cerr << "Error Accepting Client Connection...\nServer Closing..." << endl;
-      close(socketfd);
-      close(client_socketfd);
-      exit(4);
+    cout << "Listening for UDP Packets..." << endl;
+    char* buf[MAX_PACKET_SIZE];
+    struct sockaddr_in client_addr;
+    int len = sizeof(client_addr);
+    int recvlen = recvfrom(socketfd, buf, MAX_PACKET_SIZE, 0, (struct sockaddr *)&client_addr, &len));
+    if (recvlen >= 0) {
+      cout << "UDP PACKET RECEIVED..." << endl;
     }
     
-    cout << "Connected to Client with socket: " << client_socketfd << endl;
-
-    char client_ip[INET_ADDRSTRLEN] = {'\0'};
-    inet_ntop(client_address.sin_family, &client_address.sin_addr, client_ip, sizeof(client_ip));
-    cout << "Accepted Connection From Client:\n      IP: " << client_ip << "\n      Port: " << ntohs(client_address.sin_port) << endl;
-    
     close(socketfd);
-    close(client_socketfd);
     return 0;
   }
   
