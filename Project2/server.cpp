@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <signal.h>
 #include <netdb.h>
 #include <fstream>
 #include <netinet/in.h>
@@ -16,11 +17,16 @@
 using namespace std;
 
 int MAX_PACKET_SIZE = 1032; 
-
+int Connection = 0;
+int socketfd;
 
 string dns(const char* hostname, const char* port);
+void signalHandler(int signal);
 
 int main(int argc, char* argv[]) {
+  if (signal(SIGINT, signalHandler) == SIG_ERR)
+    cerr << "Can't Catch Signal..." << endl;
+
   string host = "localhost";
   string port = "4000";
   // Parse Command Line Arguments
@@ -40,13 +46,11 @@ int main(int argc, char* argv[]) {
   const char* ip = dns(host.c_str(), port.c_str()).c_str();
   cout << "IP Address: " << ip << endl;
   
-  int socketfd;
-  
   if ( (socketfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
       cerr << "Error Creating Socket...\nServer Closing..." << endl;
       exit(1);
   }
-  
+  Connection = 1;
   
   struct sockaddr_in serverAddr;
   serverAddr.sin_family = AF_INET;
@@ -66,12 +70,13 @@ int main(int argc, char* argv[]) {
     char* buf[MAX_PACKET_SIZE];
     struct sockaddr_in client_addr;
     int len = sizeof(client_addr);
-    int recvlen = recvfrom(socketfd, buf, MAX_PACKET_SIZE, 0, (struct sockaddr *)&client_addr, &len));
+    int recvlen = recvfrom(socketfd, buf, MAX_PACKET_SIZE, 0, (struct sockaddr *)&client_addr, (socklen_t *)&len);
     if (recvlen >= 0) {
       cout << "UDP PACKET RECEIVED..." << endl;
     }
     
     close(socketfd);
+    Connection = 0;
     return 0;
   }
   
@@ -99,4 +104,13 @@ std::string dns(const char* hostname, const char* port){
     return std::string(ipstr);
   }
   return NULL;
+}
+
+void signalHandler(int signal){
+  if(signal == SIGINT) {
+    cerr << "Received SIGINT...\nServer Closing..." << endl;
+    if(Connection)
+      close(socketfd);
+    Connection = 0;
+  }
 }
