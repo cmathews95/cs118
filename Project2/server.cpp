@@ -20,7 +20,12 @@ int MAX_PACKET_SIZE = 1032;
 int Connection = 0;
 int socketfd;
 
+// Simple State Abstraction to Implement TCP
+enum States { CLOSED, LISTEN, SYN_RECV, ESTAB };
+States STATE = CLOSED;
+// Resolve Hostname into IP (Simple DNS Lookup)
 string dns(const char* hostname, const char* port);
+// Catch Signals: If ^C, exit graecfully by closing socket
 void signalHandler(int signal);
 
 int main(int argc, char* argv[]) {
@@ -64,15 +69,31 @@ int main(int argc, char* argv[]) {
     cerr << "Error Binding Socket to Address...\nServer Closing..." << endl;
     exit(2);
   } 
-  
+  // Listen for UDP Packets && Implement TCP 3 Way Handshake With States
   while(1) {
     cout << "Listening for UDP Packets..." << endl;
     char* buf[MAX_PACKET_SIZE];
     struct sockaddr_in client_addr;
     int len = sizeof(client_addr);
     int recvlen = recvfrom(socketfd, buf, MAX_PACKET_SIZE, 0, (struct sockaddr *)&client_addr, (socklen_t *)&len);
+    STATE = LISTEN;
     if (recvlen >= 0) {
       cout << "UDP PACKET RECEIVED..." << endl;
+      // Check for 3 Way Handshake/Packet over existing Connection
+      switch (STATE) {
+        case CLOSED: 
+	  break;
+        case LISTEN:
+	  // If SYN Received, send SYN-ACK, Change State to SYN_RECV
+	  break;
+        case SYN_RECV:
+	  // If ACK Received, Change State to ESTAB,
+	  // Need to check for Request
+	  break;
+        case ESTAB:
+	  // Deal with Request
+	  break;
+      }
     }
     
     close(socketfd);
@@ -108,7 +129,7 @@ std::string dns(const char* hostname, const char* port){
 
 void signalHandler(int signal){
   if(signal == SIGINT) {
-    cerr << "Received SIGINT...\nServer Closing..." << endl;
+    cerr << "\nReceived SIGINT...\nServer Closing..." << endl;
     if(Connection)
       close(socketfd);
     Connection = 0;
