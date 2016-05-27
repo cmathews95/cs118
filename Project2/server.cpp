@@ -22,9 +22,13 @@ int socketfd;
 
 // Simple State Abstraction to Implement TCP
 enum States { CLOSED, LISTEN, SYN_RECV, ESTAB };
+
+// Current State
 States STATE = CLOSED;
+
 // Resolve Hostname into IP (Simple DNS Lookup)
 string dns(const char* hostname, const char* port);
+
 // Catch Signals: If ^C, exit graecfully by closing socket
 void signalHandler(int signal);
 

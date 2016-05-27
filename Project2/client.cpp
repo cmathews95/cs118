@@ -19,6 +19,12 @@ const int BUFF_SIZE = 4096;
 int socketfd;
 int Connection = 0;
 
+// Simple State Abstraction to Implement TCP
+enum States { CLOSED, SYN_SENT, ESTAB };
+
+// Current State
+States STATE = CLOSED;
+
 // Struct for urlScraper Function
 struct connection_info{
   string hostname;
@@ -34,6 +40,9 @@ void signalHandler(int signal);
 string dns(const char* hostname, const char* port);
 
 int main(int argc, char* argv[]){
+  if (signal(SIGINT, signalHandler) == SIG_ERR)
+    cerr << "Can't Catch Signal..." << endl;
+
   // Check Arguments
   if(argc <= 1) {
     cerr << "Not Enough Arguments...Pass in URL" << endl;
@@ -60,15 +69,24 @@ int main(int argc, char* argv[]){
     path = req_data->obj_path.c_str();
     
     ipaddress = dns(host, port).c_str();
-    cout << "IP ADDRESS: " << ipaddress << endl;
   }
   catch (...) {
     cerr << "Improperly formatted request" << endl;
     return 1;
   }
 
+    
+  cout << "=====================================+=====================" << 
+  endl;
+  cout << "Connecting to Server with Hostname: " << host << " | Port: " << 
+  port << endl;
+  cout << "IP ADDRESS: " << ipaddress << endl;
+
   // Create UDP Socket
-  socketfd = socket(AF_INET, SOCK_DGRAM, 0);
+  if( (socketfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ){
+    cerr << "Error Creating Socket...\nClient Closing..." << endl;
+    exit(2);
+  } 
   Connection = 1;
 
   // Setup to Send Packets to Server
@@ -77,6 +95,22 @@ int main(int argc, char* argv[]){
   serverAddr.sin_port = htons(atoi(port));
   serverAddr.sin_addr.s_addr = inet_addr(ipaddress);
   memset(serverAddr.sin_zero, '\0', sizeof(serverAddr.sin_zero));
+  
+  // Initiate 3 Way Handshake & Send Request
+  while(1) {
+    switch(STATE){
+      case CLOSED:
+	// Send SYN and Change STATE to SYN_SENT
+        break;
+      case SYN_SENT:
+	// Check if you received a SYN-ACK 
+	// If so, send ACK + Req and Change STATE to ESTAB
+	break;
+      case ESTAB:
+	// End...Only 1 Request per program execution
+	break;
+    }
+  }
 
   close(socketfd);
   Connection = 0;
@@ -140,7 +174,7 @@ string dns(const char* hostname, const char* port){
 
 void signalHandler(int signal){
   if(signal == SIGINT) {
-    cerr << "\nReceived SIGINT...\nServer Closing..." << endl;
+    cerr << "\nReceived SIGINT...\nClient Closing..." << endl;
     if(Connection)
       close(socketfd);
     Connection = 0;
