@@ -138,4 +138,5 @@ void signalHandler(int signal){
       close(socketfd);
     Connection = 0;
   }
+  exit(0);
 }

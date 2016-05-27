@@ -60,9 +60,9 @@ int main(int argc, char* argv[]){
       cerr << "Logic Error...\nClient Closing" << endl;
       exit(1);
     }
-    cout << "Host Name: " <<  req_data->hostname << endl;
-    cout << "Port: " <<  req_data->port << endl;
-    cout << "Path: " <<  req_data->obj_path << endl;
+    // cout << "Host Name: " <<  req_data->hostname << endl;
+    //cout << "Port: " <<  req_data->port << endl;
+    //cout << "Path: " <<  req_data->obj_path << endl;
     // Host & Port & path to CStrings
     host = req_data->hostname.c_str();
     port = req_data->port.c_str();
@@ -95,7 +95,7 @@ int main(int argc, char* argv[]){
   serverAddr.sin_port = htons(atoi(port));
   serverAddr.sin_addr.s_addr = inet_addr(ipaddress);
   memset(serverAddr.sin_zero, '\0', sizeof(serverAddr.sin_zero));
-  
+  cout << "Initiating Three Way Handshake..." << endl;
   // Initiate 3 Way Handshake & Send Request
   while(1) {
     switch(STATE){
@@ -179,4 +179,5 @@ void signalHandler(int signal){
       close(socketfd);
     Connection = 0;
   }
+  exit(0);
 }
