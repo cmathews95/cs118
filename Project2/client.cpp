@@ -118,24 +118,77 @@ int main(int argc, char* argv[]){
 	
 	// TCPPacket constructor arguments: seqnum, acknum, windowsize, flags, body, bodylen
 	ack_num = 0;
-	bitset<3> flags (string("001"));
+	// Flags indices go ACK, SYN, FIN (from TCPPacket.h)
+	bitset<3> flags (string("010"));
 	TCPPacket syn_packet = TCPPACKET(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
 	
-	int send_status = send(socketfd, (void*) &syn_packet, sizeof(syn_packet),0);
+	unsigned char* sendBuf = malloc(sizeof(unsigned char) * BUFF_SIZE);
+	syn_packet.encode(sendBuf);
+	
+	int send_status = send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
+
 	if(send_status < 0)
 	  {
 	    cerr << "Error, failed to send syn." << endl;
+	    free(sendBuf);
 	    exit(3);
 	  }
+	seq_num = (seq_num + 1) % MAX_SEQUENCE_NUM;
 
-
+	STATE = SYN_SENT;
+	free(sendBuf);
 	break;
+
       case SYN_SENT:
 	// Check if you received a SYN-ACK 
 	// If so, send ACK + Req and Change STATE to ESTAB
+	unsigned char buf[BUFF_SIZE];
+	memset(buf, '\0', BUFF_SIZE);
+	
+	TCPPacket recv_packet;
+
+	do
+	  {
+	    int recv_status=recv(socketfd, (void *) &recv_packet, sizeof(recv_packet), 0);
+	    if(recv_status<0)
+	      {
+		cerr << "Error: Failed to receive syn-ack" << endl;
+		exit(4);
+	      }
+	  } while(!(recv_packet.getACK() && recv_packet.getSYN));
+	
+	ack_num = (recv_packet.getSeqNumber() + 1) % MAX_SEQUENCE_NUM;
+	
+	// Sending the ack+req
+	bitset<3> flags = "100";
+	TCPPacket ack_packet = TCPPacket(sequence_num, ack_num, RECEIVE_WINDOW, flags, NULL, 0);
+	unsigned char* sendBuf = malloc(sizeof(unsigned char) * BUFF_SIZE);
+	
+	ack_packet.encode(sendBuf);
+
+        int send_status = send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
+
+        if(send_status < 0)
+          {
+            cerr << "Error, failed to send ack." << endl;
+            free(sendBuf);
+	    exit(5);
+          }
+        seq_num = (seq_num + 1) % MAX_SEQUENCE_NUM;
+	
+	// After sending out ack+req, change state to ESTAB
+	STATE = SYN_SENT;
+        free(sendBuf);
 	break;
+
       case ESTAB:
 	// End...Only 1 Request per program execution
+
+	// Receiving packets
+	// Outputting to files
+	// If receive fin, send fin-ack
+	// Else, send regular ack.
+
 	break;
     }
   }
