@@ -13,16 +13,18 @@
 #include <netinet/in.h>
 #include <vector>
 #include <fstream>
+
+#include "TCPPacket.h"
 using namespace std;
 
 
-const uint_16 MAX_PACKET_LEN = 1032;
-const uint_16 MAX_SEQUENCE_NUM = 30720; // 30KBYTES. Reset seq number if it reaches this val
-const uint_16 INITIAL_CONGESTION_WINDOW = 1024;
-const uint_16 BUFF_SIZE = 4096;
-const uint_16 INITIAL_SLOWSTART_THRESH = 30720;
-const uint_16 RETRANSMISSION_TIMEOUT = 500; // milliseconds
-const uint_16 RECEIVER_WINDOW = 30720; 
+const uint16_t MAX_PACKET_LEN = 1032;
+const uint16_t MAX_SEQUENCE_NUM = 30720; // 30KBYTES. Reset seq number if it reaches this val
+const uint16_t INITIAL_CONGESTION_WINDOW = 1024;
+const uint16_t BUFF_SIZE = 1032;
+const uint16_t INITIAL_SLOWSTART_THRESH = 30720;
+const uint16_t RETRANSMISSION_TIMEOUT = 500; // milliseconds
+const uint16_t RECEIVER_WINDOW = 30720; 
 
 
 int socketfd;
@@ -100,8 +102,8 @@ int main(int argc, char* argv[]){
 
   // Generating a random sequence number to start with
   srand(time(NULL));
-  uint_16 sequence_num = rand() % MAX_SEQUENCE_NUM;
-  uint_16 ack_num;
+  uint16_t sequence_num = rand() % MAX_SEQUENCE_NUM;
+  uint16_t ack_num;
 
   // Setup to Send Packets to Server
   struct sockaddr_in serverAddr;
@@ -110,6 +112,20 @@ int main(int argc, char* argv[]){
   serverAddr.sin_addr.s_addr = inet_addr(ipaddress);
   memset(serverAddr.sin_zero, '\0', sizeof(serverAddr.sin_zero));
   cout << "Initiating Three Way Handshake..." << endl;
+  
+  // Variables to be used in switch
+  bitset<3> flags = bitset<3>(string("000"));
+  TCPPacket syn_packet = TCPPacket(0,0,0,flags,NULL,0);
+  TCPPacket ack_packet = TCPPacket(0,0,0,flags,NULL,0);
+  TCPPacket recv_packet = TCPPacket(0,0,0,flags,NULL,0);
+
+
+  //  unsigned char* sendBuf = malloc(sizeof(unsigned char) * BUFF_SIZE);
+  unsigned char sendBuf[BUFF_SIZE];
+  int send_status, recv_status; 
+  //unsigned char* buf = malloc(sizeof(unsigned char) * BUFF_SIZE);
+  unsigned char buf[BUFF_SIZE];
+
   // Initiate 3 Way Handshake & Send Request
   while(1) {
     switch(STATE){
@@ -119,66 +135,63 @@ int main(int argc, char* argv[]){
 	// TCPPacket constructor arguments: seqnum, acknum, windowsize, flags, body, bodylen
 	ack_num = 0;
 	// Flags indices go ACK, SYN, FIN (from TCPPacket.h)
-	bitset<3> flags (string("010"));
-	TCPPacket syn_packet = TCPPACKET(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
-	
-	unsigned char* sendBuf = malloc(sizeof(unsigned char) * BUFF_SIZE);
+	flags = bitset<3>(string("010"));
+	syn_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
 	syn_packet.encode(sendBuf);
 	
-	int send_status = send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
+	send_status = send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
 
 	if(send_status < 0)
 	  {
 	    cerr << "Error, failed to send syn." << endl;
-	    free(sendBuf);
+	    //free(sendBuf);
 	    exit(3);
 	  }
-	seq_num = (seq_num + 1) % MAX_SEQUENCE_NUM;
+	sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
 
 	STATE = SYN_SENT;
-	free(sendBuf);
+	//	free(sendBuf);
 	break;
 
       case SYN_SENT:
 	// Check if you received a SYN-ACK 
 	// If so, send ACK + Req and Change STATE to ESTAB
-	unsigned char buf[BUFF_SIZE];
 	memset(buf, '\0', BUFF_SIZE);
 	
-	TCPPacket recv_packet;
+	recv_packet;
 
 	do
 	  {
-	    int recv_status=recv(socketfd, (void *) &recv_packet, sizeof(recv_packet), 0);
+	    recv_status=recv(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0);
 	    if(recv_status<0)
 	      {
 		cerr << "Error: Failed to receive syn-ack" << endl;
 		exit(4);
 	      }
-	  } while(!(recv_packet.getACK() && recv_packet.getSYN));
+	    recv_packet=TCPPacket(buf, recv_status);
+	  } while(!(recv_packet.getACK() && recv_packet.getSYN()));
 	
 	ack_num = (recv_packet.getSeqNumber() + 1) % MAX_SEQUENCE_NUM;
 	
 	// Sending the ack+req
-	bitset<3> flags = "100";
-	TCPPacket ack_packet = TCPPacket(sequence_num, ack_num, RECEIVE_WINDOW, flags, NULL, 0);
-	unsigned char* sendBuf = malloc(sizeof(unsigned char) * BUFF_SIZE);
+	flags = bitset<3>(string("100"));
+	ack_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
 	
 	ack_packet.encode(sendBuf);
 
-        int send_status = send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
+        send_status = send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
 
         if(send_status < 0)
           {
             cerr << "Error, failed to send ack." << endl;
-            free(sendBuf);
+            //free(sendBuf);
 	    exit(5);
           }
-        seq_num = (seq_num + 1) % MAX_SEQUENCE_NUM;
+        sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
 	
 	// After sending out ack+req, change state to ESTAB
-	STATE = SYN_SENT;
-        free(sendBuf);
+	STATE = ESTAB;
+	//        free(sendBuf);
 	break;
 
       case ESTAB:
