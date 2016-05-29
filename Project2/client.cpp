@@ -15,7 +15,16 @@
 #include <fstream>
 using namespace std;
 
-const int BUFF_SIZE = 4096;
+
+const uint_16 MAX_PACKET_LEN = 1032;
+const uint_16 MAX_SEQUENCE_NUM = 30720; // 30KBYTES. Reset seq number if it reaches this val
+const uint_16 INITIAL_CONGESTION_WINDOW = 1024;
+const uint_16 BUFF_SIZE = 4096;
+const uint_16 INITIAL_SLOWSTART_THRESH = 30720;
+const uint_16 RETRANSMISSION_TIMEOUT = 500; // milliseconds
+const uint_16 RECEIVER_WINDOW = 30720; 
+
+
 int socketfd;
 int Connection = 0;
 
@@ -44,8 +53,8 @@ int main(int argc, char* argv[]){
     cerr << "Can't Catch Signal..." << endl;
 
   // Check Arguments
-  if(argc <= 1) {
-    cerr << "Not Enough Arguments...Pass in URL" << endl;
+  if(argc != 3) {
+    cerr << "Error: incorrect number of arguments. Requires SERVER-HOST-OR-IP and PORT-NUMBER" << endl;
     return 1;
   }
 
@@ -89,6 +98,11 @@ int main(int argc, char* argv[]){
   } 
   Connection = 1;
 
+  // Generating a random sequence number to start with
+  srand(time(NULL));
+  uint_16 sequence_num = rand() % MAX_SEQUENCE_NUM;
+  uint_16 ack_num;
+
   // Setup to Send Packets to Server
   struct sockaddr_in serverAddr;
   serverAddr.sin_family = AF_INET;
@@ -101,7 +115,21 @@ int main(int argc, char* argv[]){
     switch(STATE){
       case CLOSED:
 	// Send SYN and Change STATE to SYN_SENT
-        break;
+	
+	// TCPPacket constructor arguments: seqnum, acknum, windowsize, flags, body, bodylen
+	ack_num = 0;
+	bitset<3> flags (string("001"));
+	TCPPacket syn_packet = TCPPACKET(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
+	
+	int send_status = send(socketfd, (void*) &syn_packet, sizeof(syn_packet),0);
+	if(send_status < 0)
+	  {
+	    cerr << "Error, failed to send syn." << endl;
+	    exit(3);
+	  }
+
+
+	break;
       case SYN_SENT:
 	// Check if you received a SYN-ACK 
 	// If so, send ACK + Req and Change STATE to ESTAB
