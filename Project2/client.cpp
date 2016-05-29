@@ -21,11 +21,10 @@ using namespace std;
 const uint16_t MAX_PACKET_LEN = 1032;
 const uint16_t MAX_SEQUENCE_NUM = 30720; // 30KBYTES. Reset seq number if it reaches this val
 const uint16_t INITIAL_CONGESTION_WINDOW = 1024;
-const uint16_t BUFF_SIZE = 1032;
+const uint16_t BUFF_SIZE = 1033; // One extra bit to null terminate.
 const uint16_t INITIAL_SLOWSTART_THRESH = 30720;
 const uint16_t RETRANSMISSION_TIMEOUT = 500; // milliseconds
 const uint16_t RECEIVER_WINDOW = 30720; 
-
 
 int socketfd;
 int Connection = 0;
@@ -138,7 +137,7 @@ int main(int argc, char* argv[]){
 	flags = bitset<3>(string("010"));
 	syn_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
 	syn_packet.encode(sendBuf);
-	
+	sendBuf[syn_packet.getLengthOfEncoding()]= '\0';
 	send_status = send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
 
 	if(send_status < 0)
@@ -178,6 +177,7 @@ int main(int argc, char* argv[]){
 	ack_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
 	
 	ack_packet.encode(sendBuf);
+	sendBuf[ack_packet.getLengthOfEncoding()] = '\0';
 
         send_status = send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
 
@@ -201,6 +201,9 @@ int main(int argc, char* argv[]){
 	// Outputting to files
 	// If receive fin, send fin-ack
 	// Else, send regular ack.
+       
+
+
 
 	break;
     }
