@@ -112,12 +112,12 @@ int main(int argc, char* argv[]){
   memset(serverAddr.sin_zero, '\0', sizeof(serverAddr.sin_zero));
   cout << "Initiating Three Way Handshake..." << endl;
   
-  // Variables to be used in switch
+  // Variables to be used in switch (Was getting "crosses initialization" error)
   bitset<3> flags = bitset<3>(string("000"));
   TCPPacket syn_packet = TCPPacket(0,0,0,flags,NULL,0);
   TCPPacket ack_packet = TCPPacket(0,0,0,flags,NULL,0);
   TCPPacket recv_packet = TCPPacket(0,0,0,flags,NULL,0);
-
+  
 
   //  unsigned char* sendBuf = malloc(sizeof(unsigned char) * BUFF_SIZE);
   unsigned char sendBuf[BUFF_SIZE];
@@ -129,6 +129,7 @@ int main(int argc, char* argv[]){
   while(1) {
     switch(STATE){
       case CLOSED:
+	{
 	// Send SYN and Change STATE to SYN_SENT
 	
 	// TCPPacket constructor arguments: seqnum, acknum, windowsize, flags, body, bodylen
@@ -151,14 +152,13 @@ int main(int argc, char* argv[]){
 	STATE = SYN_SENT;
 	//	free(sendBuf);
 	break;
-
+	}
       case SYN_SENT:
+	{
 	// Check if you received a SYN-ACK 
 	// If so, send ACK + Req and Change STATE to ESTAB
 	memset(buf, '\0', BUFF_SIZE);
 	
-	recv_packet;
-
 	do
 	  {
 	    recv_status=recv(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0);
@@ -193,19 +193,83 @@ int main(int argc, char* argv[]){
 	STATE = ESTAB;
 	//        free(sendBuf);
 	break;
-
+	}
       case ESTAB:
+	{
 	// End...Only 1 Request per program execution
 
 	// Receiving packets
 	// Outputting to files
 	// If receive fin, send fin-ack
 	// Else, send regular ack.
-       
+	
 
+	  //##################### INVALID LOGIC FOR ENDING THIS LOOP #####################//
 
+	  do
+          {
+            recv_status=recv(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0);
+            if(recv_status<0)
+              {
+                cerr << "Error: Failed to receive file" << endl;
+                exit(6);
+              }
+            recv_packet=TCPPacket(buf, recv_status);
+          } while(!(true)); // Replace 'true' with a check for whether the packet is invalid
+	// Once we exit this loop, we have just received a valid packet.
 
+        ack_num = (recv_packet.getSeqNumber() + 1) % MAX_SEQUENCE_NUM;
+
+	//##############TODO#################//
+	// Output to a file
+	
+
+	//##############TODO#################//
+	// Send the appropriate ack
+	// If fin, send fin-ack. Else, send regular ack.
+	if(recv_packet.getFIN())
+	  {
+	    cout << "Received, fin, replying with a fin-ack." << endl;
+	    flags = bitset<3>(string("101"));
+
+	    TCPPacket fa_packet = TCPPacket(sequence_num, ack_num,RECEIVER_WINDOW,flags,NULL,0);
+	    
+	    fa_packet.encode(sendBuf);
+	    sendBuf[fa_packet.getLengthOfEncoding()] = '\0';
+
+	    send_status = send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
+
+	    if(send_status < 0)
+	      {
+		cerr << "Error, failed to send fin-ack." << endl;
+		//free(sendBuf);                                                                            
+		exit(7);
+	      }
+
+	    // sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
+	  }
+	
+	// Else, just regularly ack it.
+	else
+	  {
+	    flags = bitset<3>(string("100"));
+	    ack_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW,flags,NULL,0);
+	    
+	    ack_packet.encode(sendBuf);
+	    sendBuf[fa_packet.getLengthOfEncoding()] = '\0';
+	    send_status=send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
+	    
+	    if(send_status<0)
+	      {
+		cerr << "Error, failed to ack a packet." << endl;
+		//free(sendBuf);
+		
+		exit(8);
+	      }
+	    sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
+	  }
 	break;
+	}
     }
   }
 
