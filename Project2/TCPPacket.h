@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdexcept>
 #include <iostream>
+
 typedef uint16_t uint16;
 
 const int ACKINDEX = 0;

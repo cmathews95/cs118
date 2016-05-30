@@ -26,7 +26,7 @@ int  socketfd;
 
 
 // Simple State Abstraction to Implement TCP
-enum States { CLOSED, LISTEN, SYN_RECV, ESTAB };
+enum States { CLOSED, LISTEN, SYN_RECV,FILE_TRANSFER,FIN_SENT,FIN_WAITING};
 
 // Current State
 States STATE = CLOSED;
@@ -84,13 +84,13 @@ int main(int argc, char* argv[]) {
   uint16 SERVER_SEQ_NUM = 0;
   uint16 CLIENT_WIN_SIZE = CONGESTION_WIN;
   uint16 SERVER_WIN_SIZE = CONGESTION_WIN;
+  STATE = LISTEN;
   while(1) {
     cout << "Current State: " << STATE << endl;
     unsigned char buf[MAX_PACKET_LEN];
     struct sockaddr_in client_addr;
     int len = sizeof(client_addr);
     int recvlen = recvfrom(socketfd, buf, MAX_PACKET_LEN, 0, (struct sockaddr *)&client_addr, (socklen_t *)&len);
-    STATE = LISTEN;
     if (recvlen >= 0) {
       cout << "UDP PACKET RECEIVED..." << endl;
       // Check for 3 Way Handshake/Packet over existing Connection
@@ -121,11 +121,19 @@ int main(int argc, char* argv[]) {
 	  break;
 	  }
         case SYN_RECV:
-	  // If ACK Received, Change State to ESTAB,
+	  // If ACK Received, Change State to FILE_TRANSFER and begin to transfer the file. Start the congestion window and timeouts.
+	  // Else retransmit SYN_ACK
 	  break;
-        case ESTAB:
-	  // Deal with Request
+        case FILE_TRANSFER:
+	  // Deal with Request, retransmission, and congestion windows. Once we have gotten ACKs for all files, send a FIN and move on to FIN_SENT
+	break;
+        case FIN_SENT:
+	  // Wait for FIN_ACK from the client, retransmit if neccisary. Once that is done, move to FIN_WAITING and wait for the next packet.
 	  break;
+        case FIN_WAITING:
+	  //if we get the last FIN, send a FIN_ACK and then "close" the connection.
+	  break;
+
       }
     }
     
