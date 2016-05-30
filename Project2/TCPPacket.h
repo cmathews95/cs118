@@ -44,7 +44,7 @@ class TCPPacket
 };
 
 inline TCPPacket::TCPPacket(unsigned char* buff, int length) {
-  if (length <= 8) {
+  if (length < 8) {
     throw std::invalid_argument("No TCP Header Present");
   }
   seqNumber = (buff[0]+((buff[1]&0xff)<<8));
