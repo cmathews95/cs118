@@ -13,15 +13,15 @@
 #include <string.h>
 #include <iostream>
 #include <sstream>
-
+#include "TCPPacket.h"
 using namespace std;
 
-int MAX_PACKET_LEN = 1032;  // Maximum Packet Length
-int MAX_SEQ_NUM    = 30720; // Maximum Sequence Number
-int CONGESTION_WIN = 1024;  // Initial Congestion Window Size:
-int TIME_OUT       = 500;   // Retransmission Timeout: 500 ms 
+const uint16 MAX_PACKET_LEN = 1032;  // Maximum Packet Length
+const uint16 MAX_SEQ_NUM    = 30720; // Maximum Sequence Number
+const uint16 CONGESTION_WIN = 1024;  // Initial Congestion Window Size:
+const int TIME_OUT       = 500;   // Retransmission Timeout: 500 ms 
 int Connection = 0;
-int socketfd;
+int  socketfd;
 
 
 
@@ -85,7 +85,7 @@ int main(int argc, char* argv[]) {
   uint16 CLIENT_WIN_SIZE = CONGESTION_WIN;
   uint16 SERVER_WIN_SIZE = CONGESTION_WIN;
   while(1) {
-    char* buf[MAX_PACKET_LEN];
+    unsigned char buf[MAX_PACKET_LEN];
     struct sockaddr_in client_addr;
     int len = sizeof(client_addr);
     int recvlen = recvfrom(socketfd, buf, MAX_PACKET_LEN, 0, (struct sockaddr *)&client_addr, (socklen_t *)&len);
@@ -97,6 +97,7 @@ int main(int argc, char* argv[]) {
         case CLOSED: 
 	  break;
         case LISTEN:
+	  {
 	  // If SYN Received, send SYN-ACK, Change State to SYN_RECV
 	  TCPPacket recv_packet = TCPPacket(buf, recvlen);
 	  if ( recv_packet.getSYN() && !recv_packet.getACK() && !recv_packet.getFIN() ){
@@ -106,10 +107,10 @@ int main(int argc, char* argv[]) {
 	    bitset<3> flags = bitset<3>(0x0);
 	    flags.set(ACKINDEX,1);
 	    flags.set(SYNINDEX,1);
-	    syn_ack_packet = TCPPacket(SERVER_SEQ_NUM, CLIENT_SEQ_NUM+1, SERVER_WIN_SIZE, flags,NULL,0);
-	    char* sendbuf[MAX_PACKET_LEN];
+	    TCPPacket syn_ack_packet = TCPPacket(SERVER_SEQ_NUM, (CLIENT_SEQ_NUM+1)%MAX_SEQ_NUM, SERVER_WIN_SIZE, flags,NULL,0);
+	    unsigned char sendbuf[MAX_PACKET_LEN];
 	    syn_ack_packet.encode(sendbuf);
-	    int send_status = send(socketfd, sendbuf, sizeof(unsigned char)*syn_ack_packet.getLengthOfEncoding());
+	    int send_status = send(socketfd, sendbuf, sizeof(unsigned char)*syn_ack_packet.getLengthOfEncoding(),0);
 	    if (send_status < 0){
 	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
 	      exit(1);
@@ -117,6 +118,7 @@ int main(int argc, char* argv[]) {
 	    STATE = SYN_RECV;
 	  }
 	  break;
+	  }
         case SYN_RECV:
 	  // If ACK Received, Change State to ESTAB,
 	  // Need to check for Request
