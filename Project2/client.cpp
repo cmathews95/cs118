@@ -106,6 +106,7 @@ int main(int argc, char* argv[]){
 
   // Setup to Send Packets to Server
   struct sockaddr_in serverAddr;
+  socklen_t from_len = sizeof(serverAddr);
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(atoi(port));
   serverAddr.sin_addr.s_addr = inet_addr(ipaddress);
@@ -161,7 +162,7 @@ int main(int argc, char* argv[]){
 	
 	do
 	  {
-	    recv_status=recv(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0);
+	    recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0,(struct sockaddr *) &serverAddr, & from_len);
 	    if(recv_status<0)
 	      {
 		cerr << "Error: Failed to receive syn-ack" << endl;
@@ -318,7 +319,7 @@ string dns(const char* hostname, const char* port){
   struct addrinfo* res;
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_socktype = SOCK_DGRAM;
   
   if ((status = getaddrinfo(hostname, port, &hints, &res)) != 0) {
     cerr << "getaddrinfo: " << gai_strerror(status) << endl;
