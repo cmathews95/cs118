@@ -88,8 +88,8 @@ int main(int argc, char* argv[]) {
     cout << "Current State: " << STATE << endl;
     unsigned char buf[MAX_PACKET_LEN];
     struct sockaddr_in client_addr;
-    int len = sizeof(client_addr);
-    int recvlen = recvfrom(socketfd, buf, MAX_PACKET_LEN, 0, (struct sockaddr *)&client_addr, (socklen_t *)&len);
+    socklen_t len = sizeof(client_addr);
+    int recvlen = recvfrom(socketfd, buf, MAX_PACKET_LEN, 0, (struct sockaddr *)&client_addr, &len);
     STATE = LISTEN;
     if (recvlen >= 0) {
       cout << "UDP PACKET RECEIVED..." << endl;
@@ -111,7 +111,7 @@ int main(int argc, char* argv[]) {
 	    TCPPacket syn_ack_packet = TCPPacket(SERVER_SEQ_NUM, (CLIENT_SEQ_NUM+1)%MAX_SEQ_NUM, SERVER_WIN_SIZE, flags,NULL,0);
 	    unsigned char sendbuf[MAX_PACKET_LEN];
 	    syn_ack_packet.encode(sendbuf);
-	    int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*syn_ack_packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, (socklen_t *)&len);
+	    int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*syn_ack_packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
 	    if (send_status < 0){
 	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
 	      exit(1);
