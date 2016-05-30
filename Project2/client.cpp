@@ -60,30 +60,9 @@ int main(int argc, char* argv[]){
   }
 
   // Parse URL
-  const char * host;
-  const char * port;
-  const char * path;
-  const char * ipaddress;
-  try {
-    connection_info* req_data = urlScraper(argv[1]);
-    if (req_data == NULL) {
-      cerr << "Logic Error...\nClient Closing" << endl;
-      exit(1);
-    }
-    // cout << "Host Name: " <<  req_data->hostname << endl;
-    //cout << "Port: " <<  req_data->port << endl;
-    //cout << "Path: " <<  req_data->obj_path << endl;
-    // Host & Port & path to CStrings
-    host = req_data->hostname.c_str();
-    port = req_data->port.c_str();
-    path = req_data->obj_path.c_str();
-    
-    ipaddress = dns(host, port).c_str();
-  }
-  catch (...) {
-    cerr << "Improperly formatted request" << endl;
-    return 1;
-  }
+  const char * host = argv[1];
+  const char * port = argv[2];
+  const char * ipaddress = dns(host,port).c_str();
 
     
   cout << "=====================================+=====================" << 
@@ -209,7 +188,7 @@ int main(int argc, char* argv[]){
 
 	  do
           {
-            recv_status=recv(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0);
+            recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0, (struct sockaddr *) &serverAddr, & from_len);
             if(recv_status<0)
               {
                 cerr << "Error: Failed to receive file" << endl;
