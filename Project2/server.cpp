@@ -41,7 +41,7 @@ int main(int argc, char* argv[]) {
   if (signal(SIGINT, signalHandler) == SIG_ERR)
     cerr << "Can't Catch Signal..." << endl;
 
-  string host = "localhost";
+  string host = "10.0.0.1";
   string port = "4000";
   // Parse Command Line Arguments
   if (argc == 3) {
@@ -93,8 +93,10 @@ int main(int argc, char* argv[]) {
     cout << "Current State: " << STATE << endl;
     unsigned char buf[MAX_PACKET_LEN];
     struct sockaddr_in client_addr;
-    int len = sizeof(client_addr);
-    int recvlen = recvfrom(socketfd, buf, MAX_PACKET_LEN, 0, (struct sockaddr *)&client_addr, (socklen_t *)&len);
+
+    socklen_t len = sizeof(client_addr);
+    int recvlen = recvfrom(socketfd, buf, MAX_PACKET_LEN, 0, (struct sockaddr *)&client_addr, &len);
+
     if (recvlen >= 0) {
       cout << "UDP PACKET RECEIVED..." << endl;
       // Check for 3 Way Handshake/Packet over existing Connection
@@ -104,6 +106,8 @@ int main(int argc, char* argv[]) {
         case LISTEN:
 	  {
 	  // If SYN Received, send SYN-ACK, Change State to SYN_RECV
+	    cout << "BUF: " << buf << endl;
+	    cout << "LEN: " << recvlen << endl;
 	  TCPPacket recv_packet = TCPPacket(buf, recvlen);
 	  if ( recv_packet.getSYN() && !recv_packet.getACK() && !recv_packet.getFIN() ){
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
@@ -115,7 +119,7 @@ int main(int argc, char* argv[]) {
 	    TCPPacket syn_ack_packet = TCPPacket(LastByteSent, (CLIENT_SEQ_NUM+1)%MAX_SEQ_NUM, cwnd, flags,NULL,0);
 	    unsigned char sendbuf[MAX_PACKET_LEN];
 	    syn_ack_packet.encode(sendbuf);
-	    int send_status = send(socketfd, sendbuf, sizeof(unsigned char)*syn_ack_packet.getLengthOfEncoding(),0);
+	    int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*syn_ack_packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
 	    if (send_status < 0){
 	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
 	      exit(1);

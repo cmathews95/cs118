@@ -118,7 +118,9 @@ int main(int argc, char* argv[]){
 	flags = bitset<3>(string("010"));
 	syn_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
 	syn_packet.encode(sendBuf);
+	
 
+	cout << "Sending syn request with sequence number " << sequence_num << endl;
 	send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * syn_packet.getLengthOfEncoding(), 0, (struct sockaddr *) &serverAddr, from_len);
 
 	if(send_status < 0)
@@ -133,6 +135,7 @@ int main(int argc, char* argv[]){
 	//	free(sendBuf);
 	break;
 	}
+
       case SYN_SENT:
 	{
 	// Check if you received a SYN-ACK 
@@ -147,9 +150,12 @@ int main(int argc, char* argv[]){
 		cerr << "Error: Failed to receive syn-ack" << endl;
 		exit(4);
 	      }
+
 	    recv_packet=TCPPacket(buf, recv_status);
+	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
 	  } while(!(recv_packet.getACK() && recv_packet.getSYN()));
-	
+	cout << "Received syn-ack packet" << recv_packet.getSeqNumber() << endl;
+       
 	ack_num = (recv_packet.getSeqNumber() + 1) % MAX_SEQUENCE_NUM;
 	
 	// Sending the ack+req
@@ -158,7 +164,7 @@ int main(int argc, char* argv[]){
 	
 	ack_packet.encode(sendBuf);
 
-
+	cout << "Sending ACK packet " << ack_num << endl;
         send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * ack_packet.getLengthOfEncoding(), 0,(struct sockaddr *) &serverAddr, from_len);
 
         if(send_status < 0)
@@ -174,6 +180,8 @@ int main(int argc, char* argv[]){
 	//        free(sendBuf);
 	break;
 	}
+
+
       case ESTAB:
 	{
 	// End...Only 1 Request per program execution
@@ -195,6 +203,8 @@ int main(int argc, char* argv[]){
                 exit(6);
               }
             recv_packet=TCPPacket(buf, recv_status);
+	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
+
           } while(!(true)); // Replace 'true' with a check for whether the packet is invalid
 	// Once we exit this loop, we have just received a valid packet.
 
@@ -209,7 +219,7 @@ int main(int argc, char* argv[]){
 	// If fin, send fin-ack. Else, send regular ack.
 	if(recv_packet.getFIN())
 	  {
-	    cout << "Received, fin, replying with a fin-ack." << endl;
+	    cout << "Received fin, replying with a fin-ack." << endl;
 	    flags = bitset<3>(string("101"));
 
 	    TCPPacket fa_packet = TCPPacket(sequence_num, ack_num,RECEIVER_WINDOW,flags,NULL,0);
@@ -237,6 +247,7 @@ int main(int argc, char* argv[]){
 	    
 	    ack_packet.encode(sendBuf);
 	    //	    sendBuf[fa_packet.getLengthOfEncoding()] = '\0';
+	    cout << "Sending ACK packet " << ack_num << endl;
 	    send_status=sendto(socketfd, sendBuf, sizeof(unsigned char) * ack_packet.getLengthOfEncoding(), 0, (struct sockaddr *) &serverAddr, from_len);
 	    
 	    if(send_status<0)
