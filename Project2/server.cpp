@@ -41,7 +41,7 @@ int main(int argc, char* argv[]) {
   if (signal(SIGINT, signalHandler) == SIG_ERR)
     cerr << "Can't Catch Signal..." << endl;
 
-  string host = "localhost";
+  string host = "10.0.0.1";
   string port = "4000";
   // Parse Command Line Arguments
   if (argc == 3) {
@@ -102,6 +102,8 @@ int main(int argc, char* argv[]) {
         case LISTEN:
 	  {
 	  // If SYN Received, send SYN-ACK, Change State to SYN_RECV
+	    cout << "BUF: " << buf << endl;
+	    cout << "LEN: " << recvlen << endl;
 	  TCPPacket recv_packet = TCPPacket(buf, recvlen);
 	  if ( recv_packet.getSYN() && !recv_packet.getACK() && !recv_packet.getFIN() ){
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
