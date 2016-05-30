@@ -119,7 +119,7 @@ int main(int argc, char* argv[]){
 	syn_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
 	syn_packet.encode(sendBuf);
 
-	send_status = send(socketfd, sendBuf, sizeof(unsigned char) * syn_packet.getLengthOfEncoding(), 0);
+	send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * syn_packet.getLengthOfEncoding(), 0, (struct sockaddr *) &serverAddr, from_len);
 
 	if(send_status < 0)
 	  {
@@ -159,7 +159,7 @@ int main(int argc, char* argv[]){
 	ack_packet.encode(sendBuf);
 
 
-        send_status = send(socketfd, sendBuf, sizeof(unsigned char) * ack_packet.getLengthOfEncoding(), 0);
+        send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * ack_packet.getLengthOfEncoding(), 0,(struct sockaddr *) &serverAddr, from_len);
 
         if(send_status < 0)
           {
@@ -217,7 +217,7 @@ int main(int argc, char* argv[]){
 	    fa_packet.encode(sendBuf);
 
 
-	    send_status = send(socketfd, sendBuf, sizeof(unsigned char) * fa_packet.getLengthOfEncoding(), 0);
+	    send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * fa_packet.getLengthOfEncoding(), 0, (struct sockaddr *) &serverAddr, from_len);
 
 	    if(send_status < 0)
 	      {
@@ -237,7 +237,7 @@ int main(int argc, char* argv[]){
 	    
 	    ack_packet.encode(sendBuf);
 	    //	    sendBuf[fa_packet.getLengthOfEncoding()] = '\0';
-	    send_status=send(socketfd, sendBuf, sizeof(unsigned char) * ack_packet.getLengthOfEncoding(), 0);
+	    send_status=sendto(socketfd, sendBuf, sizeof(unsigned char) * ack_packet.getLengthOfEncoding(), 0, (struct sockaddr *) &serverAddr, from_len);
 	    
 	    if(send_status<0)
 	      {

@@ -26,7 +26,7 @@ int  socketfd;
 
 
 // Simple State Abstraction to Implement TCP
-enum States { CLOSED, LISTEN, SYN_RECV, ESTAB };
+enum States { CLOSED, LISTEN, SYN_RECV,FILE_TRANSFER,FIN_SENT,FIN_WAITING};
 
 // Current State
 States STATE = CLOSED;
@@ -121,11 +121,18 @@ int main(int argc, char* argv[]) {
 	  break;
 	  }
         case SYN_RECV:
-	  // If ACK Received, Change State to ESTAB,
+	  // If ACK Received, Change State to FILE_TRANSFER and begin to transfer the file. Start the congestion window and timeouts.
 	  break;
-        case ESTAB:
-	  // Deal with Request
+        case FILE_TRANSFER:
+	  // Deal with Request, retransmission, and congestion windows. Once we have gotten ACKs for all files, send a FIN and move on to FIN_SENT
+	break;
+        case FIN_SENT:
+	  // Wait for FIN_ACK from the client, retransmit if neccisary. Once that is done, move to FIN_WAITING and wait for the next packet.
 	  break;
+        case FIN_WAITING:
+	  //if we get the last FIN, send a FIN_ACK and then "close" the connection.
+	  break;
+
       }
     }
     
