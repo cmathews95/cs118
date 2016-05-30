@@ -106,6 +106,7 @@ int main(int argc, char* argv[]){
 
   // Setup to Send Packets to Server
   struct sockaddr_in serverAddr;
+  socklen_t from_len = sizeof(serverAddr);
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(atoi(port));
   serverAddr.sin_addr.s_addr = inet_addr(ipaddress);
@@ -138,8 +139,8 @@ int main(int argc, char* argv[]){
 	flags = bitset<3>(string("010"));
 	syn_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
 	syn_packet.encode(sendBuf);
-	sendBuf[syn_packet.getLengthOfEncoding()]= '\0';
-	send_status = send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
+
+	send_status = send(socketfd, sendBuf, sizeof(unsigned char) * syn_packet.getLengthOfEncoding(), 0);
 
 	if(send_status < 0)
 	  {
@@ -161,7 +162,7 @@ int main(int argc, char* argv[]){
 	
 	do
 	  {
-	    recv_status=recv(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0);
+	    recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0,(struct sockaddr *) &serverAddr, & from_len);
 	    if(recv_status<0)
 	      {
 		cerr << "Error: Failed to receive syn-ack" << endl;
@@ -177,9 +178,9 @@ int main(int argc, char* argv[]){
 	ack_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
 	
 	ack_packet.encode(sendBuf);
-	sendBuf[ack_packet.getLengthOfEncoding()] = '\0';
 
-        send_status = send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
+
+        send_status = send(socketfd, sendBuf, sizeof(unsigned char) * ack_packet.getLengthOfEncoding(), 0);
 
         if(send_status < 0)
           {
@@ -235,9 +236,9 @@ int main(int argc, char* argv[]){
 	    TCPPacket fa_packet = TCPPacket(sequence_num, ack_num,RECEIVER_WINDOW,flags,NULL,0);
 	    
 	    fa_packet.encode(sendBuf);
-	    sendBuf[fa_packet.getLengthOfEncoding()] = '\0';
 
-	    send_status = send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
+
+	    send_status = send(socketfd, sendBuf, sizeof(unsigned char) * fa_packet.getLengthOfEncoding(), 0);
 
 	    if(send_status < 0)
 	      {
@@ -256,8 +257,8 @@ int main(int argc, char* argv[]){
 	    ack_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW,flags,NULL,0);
 	    
 	    ack_packet.encode(sendBuf);
-	    sendBuf[fa_packet.getLengthOfEncoding()] = '\0';
-	    send_status=send(socketfd, sendBuf, sizeof(unsigned char) * BUFF_SIZE, 0);
+	    //	    sendBuf[fa_packet.getLengthOfEncoding()] = '\0';
+	    send_status=send(socketfd, sendBuf, sizeof(unsigned char) * ack_packet.getLengthOfEncoding(), 0);
 	    
 	    if(send_status<0)
 	      {
@@ -266,7 +267,7 @@ int main(int argc, char* argv[]){
 		
 		exit(8);
 	      }
-	    sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
+	    sequence_num = (sequence_num + recv_packet.getBodyLength()) % MAX_SEQUENCE_NUM;
 	  }
 	break;
 	}
@@ -318,7 +319,7 @@ string dns(const char* hostname, const char* port){
   struct addrinfo* res;
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_socktype = SOCK_DGRAM;
   
   if ((status = getaddrinfo(hostname, port, &hints, &res)) != 0) {
     cerr << "getaddrinfo: " << gai_strerror(status) << endl;
