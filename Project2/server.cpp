@@ -13,12 +13,17 @@
 #include <string.h>
 #include <iostream>
 #include <sstream>
-
+#include "TCPPacket.h"
 using namespace std;
 
-int MAX_PACKET_SIZE = 1032; 
+const uint16 MAX_PACKET_LEN = 1032;  // Maximum Packet Length
+const uint16 MAX_SEQ_NUM    = 30720; // Maximum Sequence Number
+const uint16 CONGESTION_WIN = 1024;  // Initial Congestion Window Size:
+const int TIME_OUT       = 500;   // Retransmission Timeout: 500 ms 
 int Connection = 0;
-int socketfd;
+int  socketfd;
+
+
 
 // Simple State Abstraction to Implement TCP
 enum States { CLOSED, LISTEN, SYN_RECV, ESTAB };
@@ -74,12 +79,17 @@ int main(int argc, char* argv[]) {
     exit(2);
   } 
   // Listen for UDP Packets && Implement TCP 3 Way Handshake With States
+  cout << "Listening for UDP Packets..." << endl;
+  uint16 CLIENT_SEQ_NUM = 0;
+  uint16 SERVER_SEQ_NUM = 0;
+  uint16 CLIENT_WIN_SIZE = CONGESTION_WIN;
+  uint16 SERVER_WIN_SIZE = CONGESTION_WIN;
   while(1) {
-    cout << "Listening for UDP Packets..." << endl;
-    char* buf[MAX_PACKET_SIZE];
+    cout << "Current State: " << STATE << endl;
+    unsigned char buf[MAX_PACKET_LEN];
     struct sockaddr_in client_addr;
     int len = sizeof(client_addr);
-    int recvlen = recvfrom(socketfd, buf, MAX_PACKET_SIZE, 0, (struct sockaddr *)&client_addr, (socklen_t *)&len);
+    int recvlen = recvfrom(socketfd, buf, MAX_PACKET_LEN, 0, (struct sockaddr *)&client_addr, (socklen_t *)&len);
     STATE = LISTEN;
     if (recvlen >= 0) {
       cout << "UDP PACKET RECEIVED..." << endl;
@@ -88,11 +98,30 @@ int main(int argc, char* argv[]) {
         case CLOSED: 
 	  break;
         case LISTEN:
+	  {
 	  // If SYN Received, send SYN-ACK, Change State to SYN_RECV
+	  TCPPacket recv_packet = TCPPacket(buf, recvlen);
+	  if ( recv_packet.getSYN() && !recv_packet.getACK() && !recv_packet.getFIN() ){
+	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
+	    SERVER_SEQ_NUM = rand() % MAX_SEQ_NUM;
+	    // Send SYN-ACK
+	    bitset<3> flags = bitset<3>(0x0);
+	    flags.set(ACKINDEX,1);
+	    flags.set(SYNINDEX,1);
+	    TCPPacket syn_ack_packet = TCPPacket(SERVER_SEQ_NUM, (CLIENT_SEQ_NUM+1)%MAX_SEQ_NUM, SERVER_WIN_SIZE, flags,NULL,0);
+	    unsigned char sendbuf[MAX_PACKET_LEN];
+	    syn_ack_packet.encode(sendbuf);
+	    int send_status = send(socketfd, sendbuf, sizeof(unsigned char)*syn_ack_packet.getLengthOfEncoding(),0);
+	    if (send_status < 0){
+	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
+	      exit(1);
+	    }
+	    STATE = SYN_RECV;
+	  }
 	  break;
+	  }
         case SYN_RECV:
 	  // If ACK Received, Change State to ESTAB,
-	  // Need to check for Request
 	  break;
         case ESTAB:
 	  // Deal with Request
