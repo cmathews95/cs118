@@ -18,7 +18,7 @@ using namespace std;
 
 const uint16 MAX_PACKET_LEN = 1032;  // Maximum Packet Length
 const uint16 MAX_SEQ_NUM    = 30720; // Maximum Sequence Number
-const uint16 CONGESTION_WIN = 1024;  // Initial Congestion Window Size:
+const uint16 CONGESTION_WINDOW = 1024;  // Initial Congestion Window Size:
 const int TIME_OUT       = 500;   // Retransmission Timeout: 500 ms 
 int Connection = 0;
 int  socketfd;
@@ -161,12 +161,9 @@ int main(int argc, char* argv[]) {
       }
     }
     
-    close(socketfd);
-    Connection = 0;
-    return 0;
   }
-  
-
+  close(socketfd);
+  Connection = 0;
   return 0;
 }
 
