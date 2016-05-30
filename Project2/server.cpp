@@ -85,6 +85,7 @@ int main(int argc, char* argv[]) {
   uint16 CLIENT_WIN_SIZE = CONGESTION_WIN;
   uint16 SERVER_WIN_SIZE = CONGESTION_WIN;
   while(1) {
+    cout << "Current State: " << STATE << endl;
     unsigned char buf[MAX_PACKET_LEN];
     struct sockaddr_in client_addr;
     int len = sizeof(client_addr);
@@ -121,7 +122,6 @@ int main(int argc, char* argv[]) {
 	  }
         case SYN_RECV:
 	  // If ACK Received, Change State to ESTAB,
-	  // Need to check for Request
 	  break;
         case ESTAB:
 	  // Deal with Request
