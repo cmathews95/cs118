@@ -81,9 +81,13 @@ int main(int argc, char* argv[]) {
   // Listen for UDP Packets && Implement TCP 3 Way Handshake With States
   cout << "Listening for UDP Packets..." << endl;
   uint16 CLIENT_SEQ_NUM = 0;
-  uint16 SERVER_SEQ_NUM = 0;
-  uint16 CLIENT_WIN_SIZE = CONGESTION_WIN;
-  uint16 SERVER_WIN_SIZE = CONGESTION_WIN;
+  
+  uint16 cwnd = CONGESTION_WINDOW;
+  uint16 ssthresh = MAX_SEQ_NUM;
+  uint16 LastByteSent = 0;
+  uint16 LastByteAcked = 0;
+
+
   STATE = LISTEN;
   while(1) {
     cout << "Current State: " << STATE << endl;
@@ -107,12 +111,12 @@ int main(int argc, char* argv[]) {
 	  TCPPacket recv_packet = TCPPacket(buf, recvlen);
 	  if ( recv_packet.getSYN() && !recv_packet.getACK() && !recv_packet.getFIN() ){
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
-	    SERVER_SEQ_NUM = rand() % MAX_SEQ_NUM;
+	    LastByteSent = rand() % MAX_SEQ_NUM;
 	    // Send SYN-ACK
 	    bitset<3> flags = bitset<3>(0x0);
 	    flags.set(ACKINDEX,1);
 	    flags.set(SYNINDEX,1);
-	    TCPPacket syn_ack_packet = TCPPacket(SERVER_SEQ_NUM, (CLIENT_SEQ_NUM+1)%MAX_SEQ_NUM, SERVER_WIN_SIZE, flags,NULL,0);
+	    TCPPacket syn_ack_packet = TCPPacket(LastByteSent, (CLIENT_SEQ_NUM+1)%MAX_SEQ_NUM, cwnd, flags,NULL,0);
 	    unsigned char sendbuf[MAX_PACKET_LEN];
 	    syn_ack_packet.encode(sendbuf);
 	    int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*syn_ack_packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
@@ -130,6 +134,22 @@ int main(int argc, char* argv[]) {
 	  break;
         case FILE_TRANSFER:
 	  // Deal with Request, retransmission, and congestion windows. Once we have gotten ACKs for all files, send a FIN and move on to FIN_SENT
+	  // if timeout:
+	  //    sshthresh = cwnd/2;
+	  //    cwndState = SLOW_START
+	  //    cwnd=1024;
+	  //    change window to the front
+	  // else:
+	  //    if (ACK is within cwnd):
+	  //        if SLOW_START:
+	  //           if (cwnd * 2 >= ssthresh)
+	  //              cwndState = CONG_AVOID;
+	  //              goto CONG_AVOID;
+	  //           cwnd = cwnd *2;
+	  //        if (CONG_AVOID)
+	  //            cwnd++;
+	  //if ((LastByteSent - LastByteAcked) < cwnd)
+	  //    send next parts of the file
 	break;
         case FIN_SENT:
 	  // Wait for FIN_ACK from the client, retransmit if neccisary. Once that is done, move to FIN_WAITING and wait for the next packet.
