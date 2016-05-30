@@ -129,10 +129,20 @@ int main(int argc, char* argv[]) {
 	  break;
 	  }
         case SYN_RECV:
+	  {
 	  // If ACK Received, Change State to FILE_TRANSFER and begin to transfer the file. Start the congestion window and timeouts.
 	  // Else retransmit SYN_ACK
+
+	  TCPPacket recv_packet = TCPPacket(buf, recvlen);  
+	  if ( recv_packet.getACK() && !recv_packet.getSYN() && !recv_packet.getFIN() ){
+	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
+	    LastByteSent = rand() % MAX_SEQ_NUM;
+	    STATE = FILE_TRANSFER;
+	  }
 	  break;
+	  }
         case FILE_TRANSFER:
+	  cout << "Transmitting File..." << endl;
 	  // Deal with Request, retransmission, and congestion windows. Once we have gotten ACKs for all files, send a FIN and move on to FIN_SENT
 	  // if timeout:
 	  //    sshthresh = cwnd/2;
