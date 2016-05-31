@@ -99,18 +99,18 @@ int main(int argc, char* argv[]) {
 
     if (recvlen >= 0) {
       cout << "UDP PACKET RECEIVED..." << endl;
+      TCPPacket recv_packet = TCPPacket(buf, recvlen);  
+      cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
       // Check for 3 Way Handshake/Packet over existing Connection
       switch (STATE) {
         case CLOSED: 
 	  break;
         case LISTEN:
 	  {
-	  // If SYN Received, send SYN-ACK, Change State to SYN_RECV
-	    cout << "BUF: " << buf << endl;
-	    cout << "LEN: " << recvlen << endl;
-	  TCPPacket recv_packet = TCPPacket(buf, recvlen);
+	     // If SYN Received, send SYN-ACK, Change State to SYN_RECV
 	  if ( recv_packet.getSYN() && !recv_packet.getACK() && !recv_packet.getFIN() ){
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
+	    cout << "Receiving SYN packet: " << CLIENT_SEQ_NUM << endl;
 	    LastByteSent = rand() % MAX_SEQ_NUM;
 	    // Send SYN-ACK
 	    bitset<3> flags = bitset<3>(0x0);
@@ -124,6 +124,7 @@ int main(int argc, char* argv[]) {
 	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
 	      exit(1);
 	    }
+	    cout << "Sending data packet " << (CLIENT_SEQ_NUM+1)%MAX_SEQ_NUM << " " << cwnd << "SSThresh" << endl;
 	    STATE = SYN_RECV;
 	  }
 	  break;
@@ -133,12 +134,10 @@ int main(int argc, char* argv[]) {
 	  // If ACK Received, Change State to FILE_TRANSFER and begin to transfer the file. Start the congestion window and timeouts.
 	  // Else retransmit SYN_ACK
 
-	  TCPPacket recv_packet = TCPPacket(buf, recvlen);  
-	  cout << "BUF: " << buf << endl;
-	  cout << "LEN: " << recvlen << endl;
 	  if ( recv_packet.getACK() && !recv_packet.getSYN() && !recv_packet.getFIN() ){
 	    cout << "SYN_RECEIVED...Ack Received" << endl;
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
+	    cout << "Receiving ACK packet " << recv_packet.getAckNumber() << endl;
 	    LastByteSent = rand() % MAX_SEQ_NUM;
 	    STATE = FILE_TRANSFER;
 	  }
