@@ -159,7 +159,8 @@ int main(int argc, char* argv[]){
 	ack_num = (recv_packet.getSeqNumber() + 1) % MAX_SEQUENCE_NUM;
 	
 	// Sending the ack+req
-	flags = bitset<3>(string("100"));
+	flags = bitset<3>(string("0x0"));
+	flags.set(ACKINDEX,1);
 	ack_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
 	
 	ack_packet.encode(sendBuf);
