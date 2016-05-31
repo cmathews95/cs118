@@ -111,6 +111,7 @@ int main(int argc, char* argv[]) {
 	  if ( recv_packet.getSYN() && !recv_packet.getACK() && !recv_packet.getFIN() ){
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    cout << "Receiving SYN packet: " << CLIENT_SEQ_NUM << endl;
+	    srand(time(NULL));
 	    LastByteSent = rand() % MAX_SEQ_NUM;
 	    // Send SYN-ACK
 	    bitset<3> flags = bitset<3>(0x0);
@@ -124,7 +125,7 @@ int main(int argc, char* argv[]) {
 	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
 	      exit(1);
 	    }
-	    cout << "Sending data packet " << (CLIENT_SEQ_NUM+1)%MAX_SEQ_NUM << " " << cwnd << "SSThresh" << endl;
+	    cout << "Sending data packet " << syn_ack_packet.getSeqNumber() << " " << cwnd << " SSThresh" << endl;
 	    STATE = SYN_RECV;
 	  }
 	  break;
@@ -135,7 +136,7 @@ int main(int argc, char* argv[]) {
 	  // Else retransmit SYN_ACK
 
 	  if ( recv_packet.getACK() && !recv_packet.getSYN() && !recv_packet.getFIN() ){
-	    cout << "SYN_RECEIVED...Ack Received" << endl;
+	    cout << "SYN_ACK Received..." << endl;
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    cout << "Receiving ACK packet " << recv_packet.getAckNumber() << endl;
 	    LastByteSent = rand() % MAX_SEQ_NUM;
