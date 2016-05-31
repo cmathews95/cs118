@@ -134,7 +134,10 @@ int main(int argc, char* argv[]) {
 	  // Else retransmit SYN_ACK
 
 	  TCPPacket recv_packet = TCPPacket(buf, recvlen);  
+	  cout << "BUF: " << buf << endl;
+	  cout << "LEN: " << recvlen << endl;
 	  if ( recv_packet.getACK() && !recv_packet.getSYN() && !recv_packet.getFIN() ){
+	    cout << "SYN_RECEIVED...Ack Received" << endl;
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    LastByteSent = rand() % MAX_SEQ_NUM;
 	    STATE = FILE_TRANSFER;
