@@ -154,12 +154,12 @@ int main(int argc, char* argv[]){
 	    recv_packet=TCPPacket(buf, recv_status);
 	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
 	  } while(!(recv_packet.getACK() && recv_packet.getSYN()));
-	cout << "Received syn-ack packet" << recv_packet.getSeqNumber() << endl;
+	cout << "Received syn-ack packet " << recv_packet.getSeqNumber() << endl;
        
 	ack_num = (recv_packet.getSeqNumber() + 1) % MAX_SEQUENCE_NUM;
 	
 	// Sending the ack+req
-	flags = bitset<3>(string("0x0"));
+	flags = bitset<3>(0x0);
 	flags.set(ACKINDEX,1);
 	ack_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
 	
@@ -194,7 +194,7 @@ int main(int argc, char* argv[]){
 	
 
 	  //##################### INVALID LOGIC FOR ENDING THIS LOOP #####################//
-
+	  cout << "Listening for Data..." << endl;
 	  do
           {
             recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0, (struct sockaddr *) &serverAddr, & from_len);
