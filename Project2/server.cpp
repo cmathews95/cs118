@@ -141,6 +141,7 @@ int main(int argc, char* argv[]) {
 	  //    change window to the front
 	  // else:
 	  //    if (ACK is within cwnd):
+	  //        update LastByteAcked
 	  //        if SLOW_START:
 	  //           if (cwnd * 2 >= ssthresh)
 	  //              cwndState = CONG_AVOID;
