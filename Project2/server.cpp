@@ -121,7 +121,9 @@ int main(int argc, char* argv[]) {
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    cout << "Receiving SYN packet: " << CLIENT_SEQ_NUM << endl;
 	    srand(time(NULL));
-	    LastByteSent = rand() % MAX_SEQ_NUM;
+	     //LastByteSent = rand() % MAX_SEQ_NUM;
+	LastByteSent=0;
+	 	cout << LastByteSent << endl;
 	    // Send SYN-ACK
 	    bitset<3> flags = bitset<3>(0x0);
 	    flags.set(ACKINDEX,1);
