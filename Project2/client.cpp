@@ -104,6 +104,9 @@ int main(int argc, char* argv[]){
   int send_status, recv_status; 
   //unsigned char* buf = malloc(sizeof(unsigned char) * BUFF_SIZE);
   unsigned char buf[BUFF_SIZE];
+  ofstream file("ReceivedFile");
+  vector<unsigned char> receivedData;
+
 
   // Initiate 3 Way Handshake & Send Request
   while(1) {
@@ -154,12 +157,13 @@ int main(int argc, char* argv[]){
 	    recv_packet=TCPPacket(buf, recv_status);
 	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
 	  } while(!(recv_packet.getACK() && recv_packet.getSYN()));
-	cout << "Received syn-ack packet" << recv_packet.getSeqNumber() << endl;
+	cout << "Received syn-ack packet " << recv_packet.getSeqNumber() << endl;
        
 	ack_num = (recv_packet.getSeqNumber() + 1) % MAX_SEQUENCE_NUM;
 	
 	// Sending the ack+req
-	flags = bitset<3>(string("100"));
+	flags = bitset<3>(0x0);
+	flags.set(ACKINDEX,1);
 	ack_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
 	
 	ack_packet.encode(sendBuf);
@@ -193,7 +197,7 @@ int main(int argc, char* argv[]){
 	
 
 	  //##################### INVALID LOGIC FOR ENDING THIS LOOP #####################//
-
+	  cout << "Listening for Data..." << endl;
 	  do
           {
             recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0, (struct sockaddr *) &serverAddr, & from_len);
@@ -203,17 +207,17 @@ int main(int argc, char* argv[]){
                 exit(6);
               }
             recv_packet=TCPPacket(buf, recv_status);
+	    
+	    // Add the packet's data contents to a vector, which we can later write to a file.                                       
+	    receivedData.insert(receivedData.end(), &buf[8], &buf[recv_packet.getLengthOfEncoding()-1]);
+
 	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
 
           } while(!(true)); // Replace 'true' with a check for whether the packet is invalid
 	// Once we exit this loop, we have just received a valid packet.
 
         ack_num = (recv_packet.getSeqNumber() + 1) % MAX_SEQUENCE_NUM;
-
-	//##############TODO#################//
-	// Output to a file
 	
-
 	//##############TODO#################//
 	// Send the appropriate ack
 	// If fin, send fin-ack. Else, send regular ack.
@@ -264,6 +268,14 @@ int main(int argc, char* argv[]){
     }
   }
 
+
+  // Write the vector we've been maintaining to a file.
+  for(vector<unsigned char>::size_type i = 0; i != receivedData.size(); i++) 
+    {  
+      file << receivedData[i];
+    }
+
+  file.close();
   close(socketfd);
   Connection = 0;
   return 0;
