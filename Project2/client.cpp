@@ -162,7 +162,7 @@ int main(int argc, char* argv[]){
 	  } while(!(recv_packet.getACK() && recv_packet.getSYN()));
 	cout << "Received syn-ack packet " << recv_packet.getSeqNumber() << endl;
        
-	next_byte_expected = (recv_packet.getSeqNumber()+ recv_packet.getBodyLength()+ 1) % MAX_SEQUENCE_NUM;
+	next_byte_expected = (recv_packet.getSeqNumber()+ recv_packet.getBodyLength()+1) % MAX_SEQUENCE_NUM;
 	
 	// Sending the ack+req
 	flags = bitset<3>(0x0);
@@ -214,17 +214,19 @@ int main(int argc, char* argv[]){
 	    // Add the packet's data contents to a vector, which we can later write to a file.                                       
 	    //	    receivedData.insert(receivedData.end(), &buf[8], &buf[recv_packet.getLengthOfEncoding()-1]);
 
-	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
+	    cout << "Receiving data packet " << recv_packet.getSeqNumber() <<"with body length: " << recv_packet.getBodyLength() <<  endl;
 
           } while(!(true)); // Replace 'true' with a check for whether the packet is invalid
 	  // Once we exit this loop, we have just received a valid packet.
 	  if (recv_packet.getSeqNumber() == next_byte_expected) {
-	    next_byte_expected = (next_byte_expected+ recv_packet.getBodyLength()+ 1) % MAX_SEQUENCE_NUM;
+	    next_byte_expected = (next_byte_expected + recv_packet.getBodyLength()) % MAX_SEQUENCE_NUM;
 
 	    
 	    //SAVE OUR STUFF TO THE FILE
 	    recv_packet.getBody()[recv_packet.getBodyLength()]='\0';
+	    cout << recv_packet.getBody() << endl;
 	    file << recv_packet.getBody();
+	    file.flush();
 	  }
 	  
 	  
@@ -236,8 +238,9 @@ int main(int argc, char* argv[]){
 	if(recv_packet.getFIN())
 	  {
 	    cout << "Received fin, replying with a fin-ack." << endl;
-	    flags = bitset<3>(string("101"));
-
+	    flags = bitset<3>(0x0);
+	    flags.set(FININDEX,1);
+	    flags.set(ACKINDEX,1);
 	    TCPPacket fa_packet = TCPPacket(sequence_num, next_byte_expected,RECEIVER_WINDOW,flags,NULL,0);
 	    
 	    fa_packet.encode(sendBuf);
@@ -263,7 +266,8 @@ int main(int argc, char* argv[]){
 	// Else, just regularly ack it.
 	else
 	  {
-	    flags = bitset<3>(string("100"));
+	    flags = bitset<3>(0x0);
+	    flags.set(ACKINDEX,1);
 	    ack_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW,flags,NULL,0);
 	    
 	    ack_packet.encode(sendBuf);
