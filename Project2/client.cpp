@@ -104,12 +104,9 @@ int main(int argc, char* argv[]){
   int send_status, recv_status; 
   //unsigned char* buf = malloc(sizeof(unsigned char) * BUFF_SIZE);
   unsigned char buf[BUFF_SIZE];
-  ofstream file("ReceivedFile");
+  ofstream file("ReceivedFile",ofstream::out);
   vector<unsigned char> receivedData;
-  
 
-
-  //
 
   // Initiate 3 Way Handshake & Send Request
   while(1) {
@@ -133,6 +130,7 @@ int main(int argc, char* argv[]){
 	  {
 	    cerr << "Error, failed to send syn." << endl;
 	    //free(sendBuf);
+	    file.close();
 	    exit(3);
 	  }
 	sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
@@ -155,6 +153,7 @@ int main(int argc, char* argv[]){
 	    if(recv_status<0)
 	      {
 		cerr << "Error: Failed to receive syn-ack" << endl;
+		file.close();
 		exit(4);
 	      }
 
@@ -179,7 +178,9 @@ int main(int argc, char* argv[]){
           {
             cerr << "Error, failed to send ack." << endl;
             //free(sendBuf);
+	    file.close();
 	    exit(5);
+	    
           }
         sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
 	
@@ -205,12 +206,13 @@ int main(int argc, char* argv[]){
             if(recv_status<0)
               {
                 cerr << "Error: Failed to receive file" << endl;
+		file.close();
                 exit(6);
               }
             recv_packet=TCPPacket(buf, recv_status);
 	    
 	    // Add the packet's data contents to a vector, which we can later write to a file.                                       
-	    receivedData.insert(receivedData.end(), &buf[8], &buf[recv_packet.getLengthOfEncoding()-1]);
+	    //	    receivedData.insert(receivedData.end(), &buf[8], &buf[recv_packet.getLengthOfEncoding()-1]);
 
 	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
 
@@ -221,6 +223,8 @@ int main(int argc, char* argv[]){
 
 	    
 	    //SAVE OUR STUFF TO THE FILE
+	    recv_packet.getBody()[recv_packet.getBodyLength()]='\0';
+	    file << recv_packet.getBody();
 	  }
 	  
 	  
@@ -244,7 +248,7 @@ int main(int argc, char* argv[]){
 	    if(send_status < 0)
 	      {
 		cerr << "Error, failed to send fin-ack." << endl;
-		//free(sendBuf);                                                                            
+		file.close();
 		exit(7);
 	      }
 	    // WE ALSO NEED TO SEND A FIN AND WAIT FOR FIN-ACK, do this next.
@@ -271,7 +275,7 @@ int main(int argc, char* argv[]){
 	      {
 		cerr << "Error, failed to ack a packet." << endl;
 		//free(sendBuf);
-		
+		file.close();
 		exit(8);
 	      }
 	    sequence_num = (sequence_num + ack_packet.getBodyLength()) % MAX_SEQUENCE_NUM;
