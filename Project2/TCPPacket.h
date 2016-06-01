@@ -24,7 +24,7 @@ class TCPPacket
   bool encode(unsigned char* buff);
   int getLengthOfEncoding() {return bodyLength + 8;}
   int getBodyLength() {return bodyLength;}
-
+  unsigned char * getBody() { return body; }
   
   uint16 getSeqNumber() {return seqNumber;}
   uint16 getAckNumber() {return ackNumber;}

@@ -81,7 +81,7 @@ int main(int argc, char* argv[]){
   // Generating a random sequence number to start with
   srand(time(NULL));
   uint16_t sequence_num = rand() % MAX_SEQUENCE_NUM;
-  uint16_t ack_num;
+  uint16_t next_byte_expected;
 
   // Setup to Send Packets to Server
   struct sockaddr_in serverAddr;
@@ -104,6 +104,9 @@ int main(int argc, char* argv[]){
   int send_status, recv_status; 
   //unsigned char* buf = malloc(sizeof(unsigned char) * BUFF_SIZE);
   unsigned char buf[BUFF_SIZE];
+  ofstream file("ReceivedFile",ofstream::out);
+  vector<unsigned char> receivedData;
+
 
   // Initiate 3 Way Handshake & Send Request
   while(1) {
@@ -113,10 +116,10 @@ int main(int argc, char* argv[]){
 	// Send SYN and Change STATE to SYN_SENT
 	
 	// TCPPacket constructor arguments: seqnum, acknum, windowsize, flags, body, bodylen
-	ack_num = 0;
+	next_byte_expected = 0;
 	// Flags indices go ACK, SYN, FIN (from TCPPacket.h)
 	flags = bitset<3>(string("010"));
-	syn_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
+	syn_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW, flags, NULL, 0);
 	syn_packet.encode(sendBuf);
 	
 
@@ -127,6 +130,7 @@ int main(int argc, char* argv[]){
 	  {
 	    cerr << "Error, failed to send syn." << endl;
 	    //free(sendBuf);
+	    file.close();
 	    exit(3);
 	  }
 	sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
@@ -141,13 +145,15 @@ int main(int argc, char* argv[]){
 	// Check if you received a SYN-ACK 
 	// If so, send ACK + Req and Change STATE to ESTAB
 	memset(buf, '\0', BUFF_SIZE);
-	
+	//**KN**
+	//TODO PLEASE TIMEOUT IF SYN_ACK IS NOT RECEIEVED. DO NOT JUST LOOP.
 	do
 	  {
 	    recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0,(struct sockaddr *) &serverAddr, & from_len);
 	    if(recv_status<0)
 	      {
 		cerr << "Error: Failed to receive syn-ack" << endl;
+		file.close();
 		exit(4);
 	      }
 
@@ -156,23 +162,25 @@ int main(int argc, char* argv[]){
 	  } while(!(recv_packet.getACK() && recv_packet.getSYN()));
 	cout << "Received syn-ack packet " << recv_packet.getSeqNumber() << endl;
        
-	ack_num = (recv_packet.getSeqNumber() + 1) % MAX_SEQUENCE_NUM;
+	next_byte_expected = (recv_packet.getSeqNumber()+ recv_packet.getBodyLength()+ 1) % MAX_SEQUENCE_NUM;
 	
 	// Sending the ack+req
 	flags = bitset<3>(0x0);
 	flags.set(ACKINDEX,1);
-	ack_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW, flags, NULL, 0);
+	ack_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW, flags, NULL, 0);
 	
 	ack_packet.encode(sendBuf);
 
-	cout << "Sending ACK packet " << ack_num << endl;
+	cout << "Sending ACK packet " << next_byte_expected << endl;
         send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * ack_packet.getLengthOfEncoding(), 0,(struct sockaddr *) &serverAddr, from_len);
 
         if(send_status < 0)
           {
             cerr << "Error, failed to send ack." << endl;
             //free(sendBuf);
+	    file.close();
 	    exit(5);
+	    
           }
         sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
 	
@@ -185,13 +193,10 @@ int main(int argc, char* argv[]){
 
       case ESTAB:
 	{
-	// End...Only 1 Request per program execution
-
 	// Receiving packets
 	// Outputting to files
 	// If receive fin, send fin-ack
 	// Else, send regular ack.
-	
 
 	  //##################### INVALID LOGIC FOR ENDING THIS LOOP #####################//
 	  cout << "Listening for Data..." << endl;
@@ -201,21 +206,31 @@ int main(int argc, char* argv[]){
             if(recv_status<0)
               {
                 cerr << "Error: Failed to receive file" << endl;
+		file.close();
                 exit(6);
               }
             recv_packet=TCPPacket(buf, recv_status);
+	    
+	    // Add the packet's data contents to a vector, which we can later write to a file.                                       
+	    //	    receivedData.insert(receivedData.end(), &buf[8], &buf[recv_packet.getLengthOfEncoding()-1]);
+
 	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
 
           } while(!(true)); // Replace 'true' with a check for whether the packet is invalid
-	// Once we exit this loop, we have just received a valid packet.
+	  // Once we exit this loop, we have just received a valid packet.
+	  if (recv_packet.getSeqNumber() == next_byte_expected) {
+	    next_byte_expected = (next_byte_expected+ recv_packet.getBodyLength()+ 1) % MAX_SEQUENCE_NUM;
 
-        ack_num = (recv_packet.getSeqNumber() + 1) % MAX_SEQUENCE_NUM;
-
-	//##############TODO#################//
-	// Output to a file
-	
-
-	//##############TODO#################//
+	    
+	    //SAVE OUR STUFF TO THE FILE
+	    recv_packet.getBody()[recv_packet.getBodyLength()]='\0';
+	    file << recv_packet.getBody();
+	  }
+	  
+	  
+	  
+	  
+	  //##############TODO#################//
 	// Send the appropriate ack
 	// If fin, send fin-ack. Else, send regular ack.
 	if(recv_packet.getFIN())
@@ -223,7 +238,7 @@ int main(int argc, char* argv[]){
 	    cout << "Received fin, replying with a fin-ack." << endl;
 	    flags = bitset<3>(string("101"));
 
-	    TCPPacket fa_packet = TCPPacket(sequence_num, ack_num,RECEIVER_WINDOW,flags,NULL,0);
+	    TCPPacket fa_packet = TCPPacket(sequence_num, next_byte_expected,RECEIVER_WINDOW,flags,NULL,0);
 	    
 	    fa_packet.encode(sendBuf);
 
@@ -233,38 +248,51 @@ int main(int argc, char* argv[]){
 	    if(send_status < 0)
 	      {
 		cerr << "Error, failed to send fin-ack." << endl;
-		//free(sendBuf);                                                                            
+		file.close();
 		exit(7);
 	      }
+	    // WE ALSO NEED TO SEND A FIN AND WAIT FOR FIN-ACK, do this next.
 
-	    // sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
+
+
+	    //AFTER WE DO THAT, ASSEMBLE THE FILE AND SAVE IT.
+
+	    
 	  }
 	
 	// Else, just regularly ack it.
 	else
 	  {
 	    flags = bitset<3>(string("100"));
-	    ack_packet = TCPPacket(sequence_num, ack_num, RECEIVER_WINDOW,flags,NULL,0);
+	    ack_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW,flags,NULL,0);
 	    
 	    ack_packet.encode(sendBuf);
 	    //	    sendBuf[fa_packet.getLengthOfEncoding()] = '\0';
-	    cout << "Sending ACK packet " << ack_num << endl;
+	    cout << "Sending ACK packet " << next_byte_expected << endl;
 	    send_status=sendto(socketfd, sendBuf, sizeof(unsigned char) * ack_packet.getLengthOfEncoding(), 0, (struct sockaddr *) &serverAddr, from_len);
 	    
 	    if(send_status<0)
 	      {
 		cerr << "Error, failed to ack a packet." << endl;
 		//free(sendBuf);
-		
+		file.close();
 		exit(8);
 	      }
-	    sequence_num = (sequence_num + recv_packet.getBodyLength()) % MAX_SEQUENCE_NUM;
+	    sequence_num = (sequence_num + ack_packet.getBodyLength()) % MAX_SEQUENCE_NUM;
 	  }
 	break;
 	}
     }
   }
 
+
+  // Write the vector we've been maintaining to a file.
+  for(vector<unsigned char>::size_type i = 0; i != receivedData.size(); i++) 
+    {  
+      file << receivedData[i];
+    }
+
+  file.close();
   close(socketfd);
   Connection = 0;
   return 0;
