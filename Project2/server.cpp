@@ -345,13 +345,13 @@ int sendPackets(uint16 bytesToSend, uint16 lastByteSent, uint16 cwnd){
     packet.encode(sendbuf);
     cout << "Sending data packet " << packet.getSeqNumber() << cwnd << " SSThresh" << endl;
     cout << "Sent Body: " << packet.getBodyLength() << " | LastByteSent: " << LBS << endl;
-    /*
+    
     int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
     if (send_status < 0){
       cerr << "Error Sending Packet...\nServer Closing..." << endl;
       return -1;
     }
-    */
+    
     LBS+=packet.getBodyLength();
     cout << "File Sent..." << endl;	  
   }
