@@ -186,13 +186,13 @@ int main(int argc, char* argv[]) {
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    CLIENT_WINDOW = recv_packet.getWindowSize();
 	    LastByteAcked = recv_packet.getAckNumber();
-	    cout << "Receiving ACK packet " << recv_packet.getAckNumber() << endl;
+	    cout << "Receiving ACK packet " << LastByteAcked << endl;
 	    STATE = FILE_TRANSFER;
 	    
 	    if (!FILE_TRANSFER_INIT){
 	      // Set Timeout to something very small
 	      cout << "Finding File..." << endl;
-	      FILE *fd = fopen("index.html", "rb");
+	      FILE *fd = fopen("large.txt", "rb");
 	      fseek(fd,0,SEEK_END);
 	      file_len = ftell(fd);
 	      file_buf = (unsigned char *)malloc(file_len * sizeof(char));
@@ -285,18 +285,88 @@ int main(int argc, char* argv[]) {
 	  if ((file_len == bytes_sent) && (LastByteSent==LastByteAcked)) {
 	    //Send first FIN, change state to FIN_SENT
 	    cout << "File Transmission Done!" << endl;
+	    bitset<3> flags = bitset<3>(0x0);
+	    flags.set(FININDEX,1);
+	    TCPPacket fin_packet = TCPPacket(LastByteSent, 0, cwnd, flags,NULL,0);
+	    unsigned char sendbuf[MAX_PACKET_LEN];
+	    fin_packet.encode(sendbuf);
+	    int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*fin_packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
+	    if (send_status < 0){
+	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
+	      exit(1);
+	    }
+	    cout << "Initiating Closing of Connection" << endl;
+	    cout << "Sending FIN packet " << fin_packet.getSeqNumber() << " " << cwnd << " SSThresh" << endl;
+	    LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
+	    TIME_OUT = 500000;
 	    STATE=FIN_SENT;
 	  }
 	  
 	  break;
 	  }
         case FIN_SENT:
+	  {
+	  if (recvlen < 0){
+	    // Send FIN again
+	    bitset<3> flags = bitset<3>(0x0);
+	    flags.set(FININDEX,1);
+	    TCPPacket fin_packet = TCPPacket(LastByteSent, 0, cwnd, flags,NULL,0);
+	    unsigned char sendbuf[MAX_PACKET_LEN];
+	    fin_packet.encode(sendbuf);
+	    int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*fin_packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
+	    if (send_status < 0){
+	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
+	      exit(1);
+	    }
+	    cout << "Initiating Closing of Connection" << endl;
+	    cout << "Sending FIN packet " << fin_packet.getSeqNumber() << " " << cwnd << " SSThresh" << endl;
+	    LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
+	  }
+
+	    cout << "UDP PACKET RECEIVED..." << endl;
+	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
+	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
+
+	  if ( recv_packet.getFIN() && recv_packet.getACK() && !recv_packet.getFIN() ){
+	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
+	    CLIENT_WINDOW = recv_packet.getWindowSize();
+	    LastByteAcked = recv_packet.getAckNumber();
+	    cout << "Receving ACK packet " << LastByteAcked << endl;
+	    STATE = FIN_WAITING;
+	  }
 	  // Wait for FIN_ACK from the client, retransmit if neccisary. Once that is done, move to FIN_WAITING and wait for the next packet.
+      }
 	  break;
         case FIN_WAITING:
+	  {
 	  //if we get the last FIN, send a FIN_ACK and then "close" the connection.
+	  if ( recvlen < 0 ) break;
+	  cout << "UDP PACKET RECEIVED..." << endl;
+	  TCPPacket recv_packet = TCPPacket(buf, recvlen);  
+	  cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
+	  //CHECK IF ACK IS CORRECT
+	  if ( !recv_packet.getACK() && !recv_packet.getSYN() && recv_packet.getFIN() ){
+	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
+	    CLIENT_WINDOW = recv_packet.getWindowSize();
+	    cout << "Receiving FIN packet " << LastByteAcked << endl;
+	    //SEND FIN_ACK
+	    bitset<3> flags = bitset<3>(0x0);
+	    flags.set(FININDEX,1);
+	    flags.set(ACKINDEX,1);
+	    TCPPacket fin_ack_packet = TCPPacket(LastByteSent, (CLIENT_SEQ_NUM+1)%MAX_SEQ_NUM, cwnd, flags,NULL,0);
+	    unsigned char sendbuf[MAX_PACKET_LEN];
+	    fin_ack_packet.encode(sendbuf);
+	    int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*fin_ack_packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
+	    if (send_status < 0){
+	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
+	      exit(1);
+	    }
+	    cout << "Initiating Closing of Connection" << endl;
+	    cout << "Sending FIN packet " << fin_ack_packet.getSeqNumber() << " " << cwnd << " SSThresh" << endl;
+	    LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
+	  }
+	  }	  
 	  break;
-
       }
   }
   close(socketfd);
