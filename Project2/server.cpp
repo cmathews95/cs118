@@ -235,7 +235,7 @@ int main(int argc, char* argv[]) {
 
 	  if ( recvlen < 0 /*TIMEOUT HAPPENS, MIGHT BE A DIFFERENT CASE */) {
 	    // Check if Timeout Happened by comparing current time with packet_TO
-	    
+	    cout << "Seems to be a timeout!" << endl;
 	    ssthresh = cwnd/2;
 	    cwnd_STATE = SLOW_START;
 	    cwnd = 1024;
@@ -284,9 +284,11 @@ int main(int argc, char* argv[]) {
 	  }
 	  if ((file_len == bytes_sent) && (LastByteSent==LastByteAcked)) {
 	    //Send first FIN, change state to FIN_SENT
+	    cout << "File Transmission Done!" << endl;
+	    STATE=FIN_SENT;
 	  }
-
-	break;
+	  
+	  break;
 	  }
         case FIN_SENT:
 	  // Wait for FIN_ACK from the client, retransmit if neccisary. Once that is done, move to FIN_WAITING and wait for the next packet.
@@ -338,14 +340,17 @@ void signalHandler(int signal){
 uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, struct sockaddr_in c_addr){
   struct sockaddr_in client_addr = c_addr;
   socklen_t len = sizeof(client_addr);
-  if (bytes_sent <= file_len) // File Transfer Complete
+  cout << "Trying to send " << bytesToSend << " bytes. bytes_sent: "<< bytes_sent << " file_len: " << file_len << endl;
+  if (bytes_sent >= file_len) // File Transfer Complete
     return 0;
   uint16 bytesSentNow = 0;
+  bytesToSend = min(bytesToSend, (uint16)(file_len-bytes_sent)); // Maximum amount of file left to send
   while( bytesSentNow < bytesToSend ) {
+    cout << "Looping " << bytesSentNow << endl;
     bitset<3> flags = bitset<3>(0x0);	      
-    uint16 fl = min(bytesToSend, (uint16)(file_len-bytes_sent)); // Maximum amount of file left to send
-    fl = min(fl, MAX_BODY_LEN);
-    if(fl <= 0) // File Transfer Complete
+    uint16 fl = min((uint16)(bytesToSend-bytesSentNow), MAX_BODY_LEN);
+    cout << "FL: " << fl << endl;
+    if(fl == 0) // File Transfer Complete
       return bytesSentNow;
     TCPPacket packet = TCPPacket(LastByteSent, 0, cwnd, flags, file_buf+bytes_sent+bytesSentNow,fl);
     unsigned char sendbuf[MAX_PACKET_LEN];
