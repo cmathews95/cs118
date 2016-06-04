@@ -107,14 +107,14 @@ int main(int argc, char* argv[]){
   ofstream file("ReceivedFile",ofstream::out);
   vector<unsigned char> receivedData;
 
-  // Variables for timeout
+  /*  // Variables for timeout
   struct timeval time_out;
   time_out.tv_sec = 0;
   time_out.tv_usec = RETRANSMISSION_TIMEOUT;
   if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO,&time_out,sizeof(time_out)) < 0) {
     perror("Error");
   }
-
+  */
   // Need a variable to end the loop (Once the FIN protocol has finished
   bool endLoop = 0;
   // Initiate 3 Way Handshake & Send Request
