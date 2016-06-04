@@ -272,6 +272,7 @@ int main(int argc, char* argv[]){
 	// If fin, send fin-ack. Else, send regular ack.
 	if(recv_packet.getFIN())
 	  {
+	  sending_fin_ack: {
 	    cout << "Received fin, replying with a fin-ack." << endl;
 	    flags = bitset<3>(0x0);
 	    flags.set(FININDEX,1);
@@ -289,11 +290,12 @@ int main(int argc, char* argv[]){
 		file.close();
 		exit(7);
 	      }
-	    
+	    }
+	  sending_fin: {
 	    cout << "Sending FIN" << endl;
 	    flags = bitset<3>(0x0);
 	    flags.set(FININDEX,1);
-	    TCPPacket fin_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW,flags,NULL,0);
+	    TCPPacket fin_packet = TCPPacket(++sequence_num, 0, RECEIVER_WINDOW,flags,NULL,0);
 	    fin_packet.encode(sendBuf);
 
 	    send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * fin_packet.getLengthOfEncoding(), 0, (struct sockaddr *)\
@@ -306,8 +308,10 @@ int main(int argc, char* argv[]){
 		exit(9);
 	      }
 	    
+	    
 	    STATE = FIN;
 	    break;
+	    }
 	  }
 	
 	// Else, just regularly ack it.
@@ -318,7 +322,6 @@ int main(int argc, char* argv[]){
 	    ack_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW,flags,NULL,0);
 	    
 	    ack_packet.encode(sendBuf);
-	    //	    sendBuf[fa_packet.getLengthOfEncoding()] = '\0';
 	    cout << "Sending ACK packet " << next_byte_expected << endl;
 	    send_status=sendto(socketfd, sendBuf, sizeof(unsigned char) * ack_packet.getLengthOfEncoding(), 0, (struct sockaddr *) &serverAddr, from_len);
 	    
@@ -343,46 +346,43 @@ int main(int argc, char* argv[]){
 	    // ##############TODO#################
 	    // Also have to update the timeout time.
 	    
-
-
+	    struct timeval time_out;
+	    time_out.tv_sec = 0;
+	    time_out.tv_usec = 2*RETRANSMISSION_TIMEOUT;
+	    if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO,&time_out,sizeof(time_out)) < 0) {
+	      perror("Error");
+	    }
+	    
 	    recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0, (struct sockaddr *) &serverAddr, & from_len);
             
 	    bool resendFin = false;
 	    if(recv_status<0)
               {
-                cerr << "Error: Failed to receive file (Timed Out)" << endl;
 		// Resend fin
-		resendFin = true;
+		goto sending_fin; 
               }
 	    // You've received stuff
             recv_packet=TCPPacket(buf, recv_status);
       
 	    if (( recv_packet.getFIN() && !recv_packet.getACK()) || resendFin ) // If you receive a fin, that means your fin-ack got dropped
 	      {
-		cout << "Resending FIN" << endl;
-		flags = bitset<3>(0x0);
-		flags.set(FININDEX,1);
-		TCPPacket fin_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW,flags,NULL,0);
-		fin_packet.encode(sendBuf);
-
-		send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * fin_packet.getLengthOfEncoding(), 0, (struct sockaddr *)\
-				     &serverAddr, from_len);
-
-		if(send_status<0)
-		  {
-		    cerr<< "Error: Failed to send FIN" << endl;
-		    file.close();
-		    exit(9);
-		  }
+		cout << "Resending FIN-ACK" << endl;
+		goto sending_fin_ack;
 	      }
 
 	    else if ( recv_packet.getFIN() && recv_packet.getACK()) // Received a fin-ack to your fin.
 	      {
 		// At this point, you're done.
 		endLoop = true;
+		STATE=CLOSED;
+		
 		break;
 	      }
-	      // Else, received some other random packet that you don't want, so just loop again.
+	    else {
+	       // Else, received some other random packet that you don't want, so just loop again.
+	      goto sending_fin;
+	    }
+	     
 	      break;
 	  }
 	}
@@ -390,11 +390,6 @@ int main(int argc, char* argv[]){
   }
 
 
-  // Write the vector we've been maintaining to a file.
-  for(vector<unsigned char>::size_type i = 0; i != receivedData.size(); i++) 
-    {  
-      file << receivedData[i];
-    }
 
   file.close();
   close(socketfd);
