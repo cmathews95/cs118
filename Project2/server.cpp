@@ -236,6 +236,8 @@ int main(int argc, char* argv[]) {
 	  // Handle Ack
 
 	  if ( recvlen < 0 /*TIMEOUT HAPPENS, MIGHT BE A DIFFERENT CASE */) {
+	    // Check if Timeout Happened by comparing current time with packet_TO
+	    
 	    ssthresh = cwnd/2;
 	    cwnd_STATE = SLOW_START;
 	    cwnd = 1024;
@@ -357,10 +359,7 @@ int sendPackets(uint16 bytesToSend, uint16 lastByteSent, uint16 cwnd, struct soc
       return -1;
     }
     gettimeofday(&packet_TO, NULL);
-    printf("Time in microseconds: %ld microseconds\n",
-	   ((packet_TO.tv_sec - packet_TO.tv_sec)*1000000L
-	    +packet_TO.tv_usec) - packet_TO.tv_usec
-	   ); // Added semicolon
+    cout << "TIME: " << packet_TO.tv_sec << " | " << "MS: " << packet_TO.tv_usec << endl;
     LBS+=packet.getBodyLength();
     cout << "File Sent..." << endl;	  
   }
