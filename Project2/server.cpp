@@ -341,7 +341,7 @@ int main(int argc, char* argv[]) {
 	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
 	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
 
-	  if ( recv_packet.getFIN() && recv_packet.getACK() && !recv_packet.getFIN() ){
+	  if ( recv_packet.getFIN() && recv_packet.getACK() && !recv_packet.getSYN() ){
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    CLIENT_WINDOW = recv_packet.getWindowSize();
 	    LastByteAcked = recv_packet.getAckNumber();
