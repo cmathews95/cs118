@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <signal.h>
 #include <netdb.h>
 #include <fstream>
@@ -26,7 +27,8 @@ int FILE_TRANSFER_INIT = 0;         // Was the file to be sent transferred
 
 int socketfd;
 unsigned char *file_buf; // Malloc later based on file-Size
-uint16 file_len = 0;
+uint16 file_len = 0;     // Length of File to Send
+struct timeval packet_TO; // Time Last Packet was Sent
 
 // Simple State Abstraction to Implement TCP
 enum States { CLOSED, LISTEN, SYN_RECV,FILE_TRANSFER,FIN_SENT,FIN_WAITING};
@@ -179,6 +181,7 @@ int main(int argc, char* argv[]) {
 	    STATE = FILE_TRANSFER;
 	    
 	    if (!FILE_TRANSFER_INIT){
+	      // Set Timeout to something very small
 	      cout << "Finding File..." << endl;
 	      FILE *fd = fopen("index.html", "rb");
 	      fseek(fd,0,SEEK_END);
@@ -353,7 +356,11 @@ int sendPackets(uint16 bytesToSend, uint16 lastByteSent, uint16 cwnd, struct soc
       cerr << "Error Sending Packet...\nServer Closing..." << endl;
       return -1;
     }
-    
+    gettimeofday(&packet_TO, NULL);
+    printf("Time in microseconds: %ld microseconds\n",
+	   ((packet_TO.tv_sec - packet_TO.tv_sec)*1000000L
+	    +packet_TO.tv_usec) - packet_TO.tv_usec
+	   ); // Added semicolon
     LBS+=packet.getBodyLength();
     cout << "File Sent..." << endl;	  
   }
