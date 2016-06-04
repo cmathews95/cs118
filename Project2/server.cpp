@@ -33,7 +33,7 @@ long long int bytes_sent = 0;
 struct timeval packet_TO; // Time Last Packet was Sent
 
 // Simple State Abstraction to Implement TCP
-enum States { CLOSED, LISTEN, SYN_RECV,FILE_TRANSFER,FIN_SENT,FIN_WAITING};
+enum States { CLOSED, LISTEN, SYN_RECV, FILE_TRANSFER, FIN_SENT, FIN_WAITING, TIMED_WAIT};
 enum cwndStates {SLOW_START, CONG_AVOID};
 
 // Current States
@@ -177,7 +177,21 @@ int main(int argc, char* argv[]) {
 	  {
 	  // If ACK Received, Change State to FILE_TRANSFER and begin to transfer the file. Start the congestion window and timeouts.
 	  // Else retransmit SYN_ACK
-	    if (recvlen < 0)break;
+	    if (recvlen < 0){ // TIME-OUT. Retransmit SYN_ACK
+	      bitset<3> flags = bitset<3>(0x0);
+	      flags.set(ACKINDEX,1);
+	      flags.set(SYNINDEX,1);
+	      TCPPacket syn_ack_packet = TCPPacket(LastByteSent, (CLIENT_SEQ_NUM+1)%MAX_SEQ_NUM, cwnd, flags,NULL,0);
+	      unsigned char sendbuf[MAX_PACKET_LEN];
+	      syn_ack_packet.encode(sendbuf);
+	      int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*syn_ack_packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
+	      if (send_status < 0){
+		cerr << "Error Sending Packet...\nServer Closing..." << endl;
+		exit(1);
+	      }
+	      cout << "Sending data packet " << syn_ack_packet.getSeqNumber() << " " << cwnd << " SSThresh" << endl;
+	      break;
+	    } 
 	    cout << "UDP PACKET RECEIVED..." << endl;
 	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
 	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
@@ -320,7 +334,7 @@ int main(int argc, char* argv[]) {
 	    }
 	    cout << "Initiating Closing of Connection" << endl;
 	    cout << "Sending FIN packet " << fin_packet.getSeqNumber() << " " << cwnd << " SSThresh" << endl;
-	    LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
+	    break;
 	  }
 
 	    cout << "UDP PACKET RECEIVED..." << endl;
@@ -341,6 +355,7 @@ int main(int argc, char* argv[]) {
 	  {
 	  //if we get the last FIN, send a FIN_ACK and then "close" the connection.
 	  if ( recvlen < 0 ) break;
+	  FIN_ACK:
 	  cout << "UDP PACKET RECEIVED..." << endl;
 	  TCPPacket recv_packet = TCPPacket(buf, recvlen);  
 	  cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
@@ -363,10 +378,25 @@ int main(int argc, char* argv[]) {
 	    }
 	    cout << "Initiating Closing of Connection" << endl;
 	    cout << "Sending FIN packet " << fin_ack_packet.getSeqNumber() << " " << cwnd << " SSThresh" << endl;
-	    LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
+	    if (STATE != TIMED_WAIT)
+	      LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
+	    TIME_OUT*=2;
+	    STATE = TIMED_WAIT;
 	  }
 	  }	  
 	  break;
+      case TIMED_WAIT:
+	{
+	  if (recvlen < 0){
+	    close(socketfd);
+	    STATE = LISTEN;
+	    Connection = 0;
+	    break;
+	  }else{
+	    goto FIN_ACK;
+	  }
+	}
+	break;
       }
   }
   close(socketfd);
