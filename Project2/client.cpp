@@ -13,6 +13,7 @@
 #include <netinet/in.h>
 #include <vector>
 #include <fstream>
+#include <time.h>
 
 #include "TCPPacket.h"
 using namespace std;
@@ -23,14 +24,15 @@ const uint16_t MAX_SEQUENCE_NUM = 30720; // 30KBYTES. Reset seq number if it rea
 const uint16_t INITIAL_CONGESTION_WINDOW = 1024;
 const uint16_t BUFF_SIZE = 1033; // One extra bit to null terminate.
 const uint16_t INITIAL_SLOWSTART_THRESH = 30720;
-const uint16_t RETRANSMISSION_TIMEOUT = 500; // milliseconds
+// const uint16_t RETRANSMISSION_TIMEOUT = 500000; // 500 milliseconds
+const int RETRANSMISSION_TIMEOUT = 500000; // 500 milliseconds
 const uint16_t RECEIVER_WINDOW = 30720; 
 
 int socketfd;
 int Connection = 0;
 
 // Simple State Abstraction to Implement TCP
-enum States { CLOSED, SYN_SENT, ESTAB };
+enum States { CLOSED, SYN_SENT, ESTAB, FIN };
 
 // Current State
 States STATE = CLOSED;
@@ -97,8 +99,6 @@ int main(int argc, char* argv[]){
   TCPPacket syn_packet = TCPPacket(0,0,0,flags,NULL,0);
   TCPPacket ack_packet = TCPPacket(0,0,0,flags,NULL,0);
   TCPPacket recv_packet = TCPPacket(0,0,0,flags,NULL,0);
-  
-
   //  unsigned char* sendBuf = malloc(sizeof(unsigned char) * BUFF_SIZE);
   unsigned char sendBuf[BUFF_SIZE];
   int send_status, recv_status; 
@@ -107,9 +107,18 @@ int main(int argc, char* argv[]){
   ofstream file("ReceivedFile",ofstream::out);
   vector<unsigned char> receivedData;
 
+  // Variables for timeout
+  struct timeval time_out;
+  time_out.tv_sec = 0;
+  time_out.tv_usec = RETRANSMISSION_TIMEOUT;
+  if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO,&time_out,sizeof(time_out)) < 0) {
+    perror("Error");
+  }
 
+  // Need a variable to end the loop (Once the FIN protocol has finished
+  bool endLoop = 0;
   // Initiate 3 Way Handshake & Send Request
-  while(1) {
+  while(!endLoop) {
     switch(STATE){
       case CLOSED:
 	{
@@ -152,14 +161,18 @@ int main(int argc, char* argv[]){
 	    recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0,(struct sockaddr *) &serverAddr, & from_len);
 	    if(recv_status<0)
 	      {
-		cerr << "Error: Failed to receive syn-ack" << endl;
-		file.close();
-		exit(4);
+		cerr << "Error: Failed to receive syn-ack (Timed out). Resending" << endl;
+		STATE = CLOSED;
+		break; // Breaks out of our switch statement. While loop loops again and we restart in the closed state.
+		//file.close();
+		//exit(4);
 	      }
 
 	    recv_packet=TCPPacket(buf, recv_status);
 	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
 	  } while(!(recv_packet.getACK() && recv_packet.getSYN()));
+
+
 	cout << "Received syn-ack packet " << recv_packet.getSeqNumber() << endl;
        
 	next_byte_expected = (recv_packet.getSeqNumber()+ recv_packet.getBodyLength()+1) % MAX_SEQUENCE_NUM;
@@ -168,7 +181,7 @@ int main(int argc, char* argv[]){
 	flags = bitset<3>(0x0);
 	flags.set(ACKINDEX,1);
 	ack_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW, flags, NULL, 0);
-	
+    
 	ack_packet.encode(sendBuf);
 
 	cout << "Sending ACK packet " << next_byte_expected << endl;
@@ -205,6 +218,28 @@ int main(int argc, char* argv[]){
             recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0, (struct sockaddr *) &serverAddr, & from_len);
             if(recv_status<0)
               {
+		// DON'T QUIT, JUST KEEP LOOPING
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
+		//
                 cerr << "Error: Failed to receive file" << endl;
 		file.close();
                 exit(6);
@@ -254,13 +289,25 @@ int main(int argc, char* argv[]){
 		file.close();
 		exit(7);
 	      }
-	    // WE ALSO NEED TO SEND A FIN AND WAIT FOR FIN-ACK, do this next.
-
-
-
-	    //AFTER WE DO THAT, ASSEMBLE THE FILE AND SAVE IT.
-
 	    
+	    cout << "Sending FIN" << endl;
+	    flags = bitset<3>(0x0);
+	    flags.set(FININDEX,1);
+	    TCPPacket fin_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW,flags,NULL,0);
+	    fin_packet.encode(sendBuf);
+
+	    send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * fin_packet.getLengthOfEncoding(), 0, (struct sockaddr *)\
+				 &serverAddr, from_len);
+
+	    if(send_status<0)
+	      {
+		cerr<< "Error: Failed to send FIN" << endl;
+		file.close();
+		exit(9);
+	      }
+	    
+	    STATE = FIN;
+	    break;
 	  }
 	
 	// Else, just regularly ack it.
@@ -285,6 +332,59 @@ int main(int argc, char* argv[]){
 	    sequence_num = (sequence_num + ack_packet.getBodyLength()) % MAX_SEQUENCE_NUM;
 	  }
 	break;
+
+
+	case FIN:
+	  {
+	    // In this state, you've sent your fin-ack and fin.
+	    // Keep receiving. If you receive a fin packet or you time out, resend your fin.
+	    // If you receive a fin-ack, close the connection.
+
+	    // ##############TODO#################
+	    // Also have to update the timeout time.
+	    
+
+
+	    recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0, (struct sockaddr *) &serverAddr, & from_len);
+            
+	    bool resendFin = false;
+	    if(recv_status<0)
+              {
+                cerr << "Error: Failed to receive file (Timed Out)" << endl;
+		// Resend fin
+		resendFin = true;
+              }
+	    // You've received stuff
+            recv_packet=TCPPacket(buf, recv_status);
+      
+	    if (( recv_packet.getFIN() && !recv_packet.getACK()) || resendFin ) // If you receive a fin, that means your fin-ack got dropped
+	      {
+		cout << "Resending FIN" << endl;
+		flags = bitset<3>(0x0);
+		flags.set(FININDEX,1);
+		TCPPacket fin_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW,flags,NULL,0);
+		fin_packet.encode(sendBuf);
+
+		send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * fin_packet.getLengthOfEncoding(), 0, (struct sockaddr *)\
+				     &serverAddr, from_len);
+
+		if(send_status<0)
+		  {
+		    cerr<< "Error: Failed to send FIN" << endl;
+		    file.close();
+		    exit(9);
+		  }
+	      }
+
+	    else if ( recv_packet.getFIN() && recv_packet.getACK()) // Received a fin-ack to your fin.
+	      {
+		// At this point, you're done.
+		endLoop = true;
+		break;
+	      }
+	      // Else, received some other random packet that you don't want, so just loop again.
+	      break;
+	  }
 	}
     }
   }
