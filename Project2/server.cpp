@@ -207,6 +207,7 @@ int main(int argc, char* argv[]) {
 	      FILE_TRANSFER_INIT = 1;
 	    }
 	    cout << "==========FILE=====SIZE: " << file_len << " =====\n" << file_buf << endl;
+
 	    goto send;
 	  }
 	  break;
@@ -269,9 +270,12 @@ int main(int argc, char* argv[]) {
 	  }
 	  send:
 	  //Send what we need
+	  
 	  uint16 bytes_to_send = get_bytes_to_send(LastByteSent,LastByteAcked,cwnd,CLIENT_WINDOW);
+	  cout << "Need to send :" << bytes_to_send << " bytes to the client" << endl;
 	  //START RTT TIMER
 	  uint16 _bytes_sent= sendPackets(bytes_to_send ,LastByteSent,cwnd,client_addr);
+	  cout << "Actually sent :" << _bytes_sent << " bytes to the client" << endl;
 	  if (_bytes_sent < 0) {
 	  }
 	  else {
