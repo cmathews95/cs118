@@ -203,6 +203,11 @@ int main(int argc, char* argv[]){
         //sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
 	
 	// After sending out ack+req, change state to ESTAB
+	time_out.tv_sec = 0;
+	time_out.tv_usec = 0;
+	if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO,&time_out,sizeof(time_out)) < 0) {
+	  perror("Error");
+	}
 	STATE = ESTAB;
 	break;
 	}
@@ -215,25 +220,19 @@ int main(int argc, char* argv[]){
 	// If receive fin, send fin-ack
 	// Else, send regular ack.
 
-	  //##################### INVALID LOGIC FOR ENDING THIS LOOP #####################//
 	  cout << "Listening for Data..." << endl;
-	  do
-          {
-            recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0, (struct sockaddr *) &serverAddr, & from_len);
-            if(recv_status<0)
-              {
-                cerr << "Error: Failed to receive file" << endl;
-		file.close();
-                exit(6);
-              }
-            recv_packet=TCPPacket(buf, recv_status);
-	    
-	    // Add the packet's data contents to a vector, which we can later write to a file.                                       
-	    //	    receivedData.insert(receivedData.end(), &buf[8], &buf[recv_packet.getLengthOfEncoding()-1]);
 
-	    cout << "Receiving data packet " << recv_packet.getSeqNumber() <<"with body length: " << recv_packet.getBodyLength() <<  endl;
-
-          } while(!(true)); // Replace 'true' with a check for whether the packet is invalid
+	  recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0, (struct sockaddr *) &serverAddr, & from_len);
+	  if(recv_status<0)
+	    {
+	      cerr << "Error: Corrupted Packet" << endl;
+	      break;
+	    }
+	  recv_packet=TCPPacket(buf, recv_status);
+	  	  
+	  cout << "Receiving data packet " << recv_packet.getSeqNumber() <<"with body length: " << recv_packet.getBodyLength() <<  endl;
+	  
+	
 	  // Once we exit this loop, we have just received a valid packet.
 	  if (recv_packet.getSeqNumber() == next_byte_expected) {
 	    next_byte_expected = (next_byte_expected + recv_packet.getBodyLength()) % MAX_SEQUENCE_NUM;
@@ -241,7 +240,6 @@ int main(int argc, char* argv[]){
 	    if (recv_packet.getBodyLength() > 0) {
 	      //SAVE OUR STUFF TO THE FILE
 	      recv_packet.getBody()[recv_packet.getBodyLength()]='\0';
-	      cout << recv_packet.getBody() << endl;
 	      file << recv_packet.getBody();
 	      file.flush();
 	    }
@@ -331,10 +329,10 @@ int main(int argc, char* argv[]){
 	    // Also have to update the timeout time.
 	    
 	    struct timeval time_out;
-	    time_out.tv_sec = 0;
-	    time_out.tv_usec = 2*RETRANSMISSION_TIMEOUT;
+	    time_out.tv_sec = 1;
+	    time_out.tv_usec = 0;
 	    if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO,&time_out,sizeof(time_out)) < 0) {
-	      perror("Error");
+	      perror("Error Here");
 	    }
 	    
 	    recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0, (struct sockaddr *) &serverAddr, & from_len);
@@ -342,6 +340,7 @@ int main(int argc, char* argv[]){
 	    bool resendFin = false;
 	    if(recv_status<0)
               {
+		cout << "I seem to have missed the fin-ack, resending the fin" << endl;
 		// Resend fin
 		goto sending_fin; 
               }
