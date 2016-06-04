@@ -108,16 +108,11 @@ int main(int argc, char* argv[]){
   vector<unsigned char> receivedData;
 
   /*  // Variables for timeout
-  struct timeval time_out;
-  time_out.tv_sec = 0;
-  time_out.tv_usec = RETRANSMISSION_TIMEOUT;
-  if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO,&time_out,sizeof(time_out)) < 0) {
-    perror("Error");
-  }
-  */
+    */
   // Need a variable to end the loop (Once the FIN protocol has finished
   bool endLoop = 0;
   // Initiate 3 Way Handshake & Send Request
+  int init_counter = 0;
   while(!endLoop) {
     switch(STATE){
       case CLOSED:
@@ -127,25 +122,24 @@ int main(int argc, char* argv[]){
 	// TCPPacket constructor arguments: seqnum, acknum, windowsize, flags, body, bodylen
 	next_byte_expected = 0;
 	// Flags indices go ACK, SYN, FIN (from TCPPacket.h)
-	flags = bitset<3>(string("010"));
+	flags = bitset<3>(0x0);
+	flags.set(SYNINDEX,1);
 	syn_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW, flags, NULL, 0);
 	syn_packet.encode(sendBuf);
 	
-
+	//TODO Insert TIMEOUT
 	cout << "Sending syn request with sequence number " << sequence_num << endl;
 	send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * syn_packet.getLengthOfEncoding(), 0, (struct sockaddr *) &serverAddr, from_len);
 
 	if(send_status < 0)
 	  {
-	    cerr << "Error, failed to send syn." << endl;
-	    //free(sendBuf);
-	    file.close();
-	    exit(3);
+	    cout << "Could not send fin, exiting" << endl;
+	    exit(1);
+	    break;
 	  }
 	sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
 
 	STATE = SYN_SENT;
-	//	free(sendBuf);
 	break;
 	}
 
@@ -155,22 +149,33 @@ int main(int argc, char* argv[]){
 	// If so, send ACK + Req and Change STATE to ESTAB
 	memset(buf, '\0', BUFF_SIZE);
 	//**KN**
-	//TODO PLEASE TIMEOUT IF SYN_ACK IS NOT RECEIEVED. DO NOT JUST LOOP.
-	do
-	  {
-	    recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0,(struct sockaddr *) &serverAddr, & from_len);
-	    if(recv_status<0)
-	      {
-		cerr << "Error: Failed to receive syn-ack (Timed out). Resending" << endl;
-		STATE = CLOSED;
-		break; // Breaks out of our switch statement. While loop loops again and we restart in the closed state.
-		//file.close();
-		//exit(4);
-	      }
 
-	    recv_packet=TCPPacket(buf, recv_status);
-	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
-	  } while(!(recv_packet.getACK() && recv_packet.getSYN()));
+	struct timeval time_out;
+	time_out.tv_sec = 0;
+	time_out.tv_usec = RETRANSMISSION_TIMEOUT;
+	if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO,&time_out,sizeof(time_out)) < 0) {
+	  perror("Error");
+	}
+	
+	recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0,(struct sockaddr *) &serverAddr, & from_len);
+	if(recv_status<0)
+	  {
+	    init_counter++;
+	    if (init_counter ==3) {
+	      cerr << "Error: Failed to receive Response from Server (Timed out). Exiting" << endl;
+	      file.close();
+	      exit(2);
+	    }
+	    
+	    STATE = CLOSED;
+	    break; // Breaks out of our switch statement. While loop loops again and we restart in the closed state.
+	    //file.close();
+	    //exit(4);
+	  }
+	
+	recv_packet=TCPPacket(buf, recv_status);
+	cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
+	    
 
 
 	cout << "Received syn-ack packet " << recv_packet.getSeqNumber() << endl;
@@ -180,7 +185,7 @@ int main(int argc, char* argv[]){
 	// Sending the ack+req
 	flags = bitset<3>(0x0);
 	flags.set(ACKINDEX,1);
-	ack_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW, flags, NULL, 0);
+	ack_packet = TCPPacket(0, next_byte_expected, RECEIVER_WINDOW, flags, NULL, 0);
     
 	ack_packet.encode(sendBuf);
 
@@ -195,11 +200,10 @@ int main(int argc, char* argv[]){
 	    exit(5);
 	    
           }
-        sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
+        //sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
 	
 	// After sending out ack+req, change state to ESTAB
 	STATE = ESTAB;
-	//        free(sendBuf);
 	break;
 	}
 
@@ -218,28 +222,6 @@ int main(int argc, char* argv[]){
             recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0, (struct sockaddr *) &serverAddr, & from_len);
             if(recv_status<0)
               {
-		// DON'T QUIT, JUST KEEP LOOPING
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
-		//
                 cerr << "Error: Failed to receive file" << endl;
 		file.close();
                 exit(6);
@@ -256,12 +238,13 @@ int main(int argc, char* argv[]){
 	  if (recv_packet.getSeqNumber() == next_byte_expected) {
 	    next_byte_expected = (next_byte_expected + recv_packet.getBodyLength()) % MAX_SEQUENCE_NUM;
 
-	    
-	    //SAVE OUR STUFF TO THE FILE
-	    recv_packet.getBody()[recv_packet.getBodyLength()]='\0';
-	    cout << recv_packet.getBody() << endl;
-	    file << recv_packet.getBody();
-	    file.flush();
+	    if (recv_packet.getBodyLength() > 0) {
+	      //SAVE OUR STUFF TO THE FILE
+	      recv_packet.getBody()[recv_packet.getBodyLength()]='\0';
+	      cout << recv_packet.getBody() << endl;
+	      file << recv_packet.getBody();
+	      file.flush();
+	    }
 	  }
 	  
 	  
@@ -295,7 +278,8 @@ int main(int argc, char* argv[]){
 	    cout << "Sending FIN" << endl;
 	    flags = bitset<3>(0x0);
 	    flags.set(FININDEX,1);
-	    TCPPacket fin_packet = TCPPacket(++sequence_num, 0, RECEIVER_WINDOW,flags,NULL,0);
+	    if (STATE==ESTAB) sequence_num++;
+	    TCPPacket fin_packet = TCPPacket(sequence_num, 0, RECEIVER_WINDOW,flags,NULL,0);
 	    fin_packet.encode(sendBuf);
 
 	    send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * fin_packet.getLengthOfEncoding(), 0, (struct sockaddr *)\
@@ -375,7 +359,6 @@ int main(int argc, char* argv[]){
 		// At this point, you're done.
 		endLoop = true;
 		STATE=CLOSED;
-		
 		break;
 	      }
 	    else {
