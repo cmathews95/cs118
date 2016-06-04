@@ -206,7 +206,7 @@ int main(int argc, char* argv[]) {
 	    if (!FILE_TRANSFER_INIT){
 	      // Set Timeout to something very small
 	      cout << "Finding File..." << endl;
-	      FILE *fd = fopen("large.txt", "rb");
+	      FILE *fd = fopen("index.html", "rb");
 	      fseek(fd,0,SEEK_END);
 	      file_len = ftell(fd);
 	      file_buf = (unsigned char *)malloc(file_len * sizeof(char));
@@ -321,6 +321,7 @@ int main(int argc, char* argv[]) {
         case FIN_SENT:
 	  {
 	  if (recvlen < 0){
+	    cout << "I seem to have timed out on my FIN" << endl;
 	    // Send FIN again
 	    bitset<3> flags = bitset<3>(0x0);
 	    flags.set(FININDEX,1);
