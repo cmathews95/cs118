@@ -55,7 +55,7 @@ uint16 get_bytes_to_send(uint16 LastByteSent, uint16 LastByteAcked, uint16 cwnd,
 }
 
 // Send Packets based on BytesToSend & Bytes Sent
-int sendPackets(uint16 bytesToSend, uint16 bytesSent, uint16 cwnd);
+int sendPackets(uint16 bytesToSend, uint16 lastByteSent, uint16 cwnd, struct sockaddr_in c_addr);
 
 int main(int argc, char* argv[]) {
   if (signal(SIGINT, signalHandler) == SIG_ERR)
@@ -197,7 +197,7 @@ int main(int argc, char* argv[]) {
 	    cout << "==========FILE=====SIZE: " << file_len << " =====\n" << file_buf << endl;
 
 	    uint16 bytes_to_send = get_bytes_to_send(LastByteSent,LastByteAcked,cwnd,CLIENT_WINDOW);
-	    uint16 bytes_sent= sendPackets(bytes_to_send ,LastByteSent,cwnd);
+	    uint16 bytes_sent= sendPackets(bytes_to_send ,LastByteSent,cwnd, client_addr);
 	    if (bytes_sent < 0) {
 	    }
 	    else {
@@ -268,7 +268,7 @@ int main(int argc, char* argv[]) {
 	  //Send what we need
 	  uint16 bytes_to_send = get_bytes_to_send(LastByteSent,LastByteAcked,cwnd,CLIENT_WINDOW);
 	  //START RTT TIMER
-	  uint16 bytes_sent= sendPackets(bytes_to_send ,LastByteSent,cwnd);
+	  uint16 bytes_sent= sendPackets(bytes_to_send ,LastByteSent,cwnd,client_addr);
 	  if (bytes_sent < 0) {
 	  }
 	  else {
@@ -326,7 +326,9 @@ void signalHandler(int signal){
   exit(0);
 }
 
-int sendPackets(uint16 bytesToSend, uint16 lastByteSent, uint16 cwnd){
+int sendPackets(uint16 bytesToSend, uint16 lastByteSent, uint16 cwnd, struct sockaddr_in c_addr){
+  struct sockaddr_in client_addr = c_addr;
+  socklen_t len = sizeof(client_addr);
   if (lastByteSent == file_len) // File Transfer Complete
     return lastByteSent;
   if (lastByteSent > file_len) // Error, more bytes sent then size of file
