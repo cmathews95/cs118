@@ -255,7 +255,14 @@ int main(int argc, char* argv[]) {
 	    cwnd = 1024;
 	    
 	    //Change window to front
+	    uint16 backTrack = 0;
+	    if (LastByteSent < LastByteAcked)
+	      backTrack = MAX_SEQ_NUM - LastByteAcked + LastByteSent;
+	    else
+	      backTrack = LastByteSent-LastByteAcked;
+
 	    LastByteSent = LastByteAcked;
+	    bytes_sent -= backTrack;
 	  }else{
 	    cout << "UDP PACKET RECEIVED..." << endl;
 	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
@@ -268,7 +275,8 @@ int main(int argc, char* argv[]) {
 	      cout << "Receiving ACK packet " << recv_packet.getAckNumber() << endl;
 	    }
 	    //CHECK RTT TIMER
-	    LastByteAcked = (recv_packet.getAckNumber()>=LastByteAcked) ? recv_packet.getAckNumber() : LastByteAcked;
+	    //TODO Change it back eventually
+	    LastByteAcked =  recv_packet.getAckNumber();
 	    if (cwnd_STATE == SLOW_START) {
 	      if (cwnd * 2 >= ssthresh) {
 		cwnd_STATE = CONG_AVOID;
@@ -446,7 +454,7 @@ uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, struct 
   if (bytes_sent >= file_len) // File Transfer Complete
     return 0;
   uint16 bytesSentNow = 0;
-  bytesToSend = min(bytesToSend, (uint16)(file_len-bytes_sent)); // Maximum amount of file left to send
+  bytesToSend = min((long long)bytesToSend, (file_len-bytes_sent)); // Maximum amount of file left to send
   while( bytesSentNow < bytesToSend ) {
     cout << "Looping " << bytesSentNow << endl;
     bitset<3> flags = bitset<3>(0x0);	      
