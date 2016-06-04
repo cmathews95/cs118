@@ -389,7 +389,6 @@ int main(int argc, char* argv[]) {
       case TIMED_WAIT:
 	{
 	  if (recvlen < 0){
-	    close(socketfd);
 	    STATE = LISTEN;
 	    Connection = 0;
 	    break;
