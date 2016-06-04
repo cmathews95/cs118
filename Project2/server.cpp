@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
   // Resolve IP from Hostname
   const char* ip = dns(host.c_str(), port.c_str()).c_str();
   cout << "IP Address: " << ip << endl;
-  
+
   if ( (socketfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
       cerr << "Error Creating Socket...\nServer Closing..." << endl;
       exit(1);
@@ -103,13 +103,14 @@ int main(int argc, char* argv[]) {
   serverAddr.sin_port = htons(atoi(port.c_str()));
   serverAddr.sin_addr.s_addr = inet_addr(ip);
   memset(serverAddr.sin_zero, '\0', sizeof(serverAddr.sin_zero));
-  
+
   int bind_status;
   if ( (bind_status = bind(socketfd, (struct sockaddr*) &serverAddr, sizeof(serverAddr))) < 0 ){
     close(socketfd);	
     cerr << "Error Binding Socket to Address...\nServer Closing..." << endl;
     exit(2);
   } 
+
   // Listen for UDP Packets && Implement TCP 3 Way Handshake With States
   cout << "Listening for UDP Packets..." << endl;
   uint16 CLIENT_SEQ_NUM = 0;
@@ -122,15 +123,14 @@ int main(int argc, char* argv[]) {
 
   STATE = LISTEN;
   while(1) {
-    //    cout << "Current State: " << STATE << endl;
     unsigned char buf[MAX_PACKET_LEN];
     struct sockaddr_in client_addr;
 
     socklen_t len = sizeof(client_addr);
    
     struct timeval time_out;
-    time_out.tv_sec = 0;
-    time_out.tv_usec = TIME_OUT;
+    time_out.tv_sec  = (TIME_OUT/1000000);
+    time_out.tv_usec = (TIME_OUT%1000000);
     if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO,&time_out,sizeof(time_out)) < 0) {
       perror("Error");
     }
@@ -206,7 +206,7 @@ int main(int argc, char* argv[]) {
 	    if (!FILE_TRANSFER_INIT){
 	      // Set Timeout to something very small
 	      cout << "Finding File..." << endl;
-	      FILE *fd = fopen("large.txt", "rb");
+	      FILE *fd = fopen("index.html", "rb");
 	      fseek(fd,0,SEEK_END);
 	      file_len = ftell(fd);
 	      file_buf = (unsigned char *)malloc(file_len * sizeof(char));
@@ -321,6 +321,7 @@ int main(int argc, char* argv[]) {
         case FIN_SENT:
 	  {
 	  if (recvlen < 0){
+	    cout << "I seem to have timed out on my FIN" << endl;
 	    // Send FIN again
 	    bitset<3> flags = bitset<3>(0x0);
 	    flags.set(FININDEX,1);
@@ -341,7 +342,7 @@ int main(int argc, char* argv[]) {
 	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
 	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
 
-	  if ( recv_packet.getFIN() && recv_packet.getACK() && !recv_packet.getFIN() ){
+	  if ( recv_packet.getFIN() && recv_packet.getACK() && !recv_packet.getSYN() ){
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    CLIENT_WINDOW = recv_packet.getWindowSize();
 	    LastByteAcked = recv_packet.getAckNumber();
@@ -381,6 +382,7 @@ int main(int argc, char* argv[]) {
 	    if (STATE != TIMED_WAIT)
 	      LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
 	    TIME_OUT*=2;
+	    
 	    STATE = TIMED_WAIT;
 	  }
 	  }	  
@@ -388,9 +390,9 @@ int main(int argc, char* argv[]) {
       case TIMED_WAIT:
 	{
 	  if (recvlen < 0){
-	    close(socketfd);
 	    STATE = LISTEN;
 	    Connection = 0;
+	    cout << "Connection Closed...\nListening..." << endl;
 	    break;
 	  }else{
 	    goto FIN_ACK;
