@@ -19,17 +19,20 @@ using namespace std;
 
 const uint16 MAX_PACKET_LEN = 1032;  // Maximum Packet Length
 const uint16 MAX_SEQ_NUM    = 30720; // Maximum Sequence Number
-const uint16 MAX_BODY_LEN = 1024;  // Initial Congestion Window Size:
-int TIME_OUT   = 500000;   // Retransmission Timeout: 500 ms 
-int Connection = 0;
-int  socketfd;
-int FILE_TRANSFER_INIT = 0;
+const uint16 MAX_BODY_LEN   = 1024;  // Initial Congestion Window Size:
+int TIME_OUT           = 500000;    // Retransmission Timeout: 500 ms 
+int Connection         = 0;         // Is a TCP connection established
+int FILE_TRANSFER_INIT = 0;         // Was the file to be sent transferred
+
+int socketfd;
 unsigned char *file_buf; // Malloc later based on file-Size
-int file_len = 0;
+uint16 file_len = 0;
+
 // Simple State Abstraction to Implement TCP
 enum States { CLOSED, LISTEN, SYN_RECV,FILE_TRANSFER,FIN_SENT,FIN_WAITING};
 enum cwndStates {SLOW_START, CONG_AVOID};
-// Current State
+
+// Current States
 States STATE = CLOSED;
 cwndStates cwnd_STATE = SLOW_START;
 
@@ -51,6 +54,8 @@ uint16 get_bytes_to_send(uint16 LastByteSent, uint16 LastByteAcked, uint16 cwnd,
   return 0;
 }
 
+// Send Packets based on BytesToSend & Bytes Sent
+int sendPackets(uint16 bytesToSend, uint16 bytesSent, uint16 cwnd);
 
 int main(int argc, char* argv[]) {
   if (signal(SIGINT, signalHandler) == SIG_ERR)
@@ -192,15 +197,16 @@ int main(int argc, char* argv[]) {
 	    cout << "==========FILE=====SIZE: " << file_len << " =====\n" << file_buf << endl;
 
 	    uint16 bytes_to_send = get_bytes_to_send(LastByteSent,LastByteAcked,cwnd,CLIENT_WINDOW);
-	    uint16 bytes_sent= sendPackets(bytes_to_send ,LastByteSend,cwnd);
+	    uint16 bytes_sent= sendPackets(bytes_to_send ,LastByteSent,cwnd);
 	    if (bytes_sent < 0) {
 	    }
 	    else {
 	      LastByteSent+=bytes_sent;
 	    }
-	    if (file_len == LastByteSent == LastByteAcked) {
+	    if ((file_len == LastByteSent) && (file_len==LastByteAcked)) {
 	      //Send first ACK, change state to FIN_SENT
 	    }
+	    
 	    
 	  }
 	  break;
@@ -262,13 +268,13 @@ int main(int argc, char* argv[]) {
 	  //Send what we need
 	  uint16 bytes_to_send = get_bytes_to_send(LastByteSent,LastByteAcked,cwnd,CLIENT_WINDOW);
 	  //START RTT TIMER
-	  uint16 bytes_sent= sendPackets(bytes_to_send ,LastByteSend,cwnd);
+	  uint16 bytes_sent= sendPackets(bytes_to_send ,LastByteSent,cwnd);
 	  if (bytes_sent < 0) {
 	  }
 	  else {
 	    LastByteSent+=bytes_sent;
 	  }
-	  if (file_len == LastByteSent == LastByteAcked) {
+	  if ((file_len == LastByteSent) && (file_len==LastByteAcked)) {
 	    //Send first ACK, change state to FIN_SENT
 	  }
 
@@ -318,4 +324,36 @@ void signalHandler(int signal){
     Connection = 0;
   }
   exit(0);
+}
+
+int sendPackets(uint16 bytesToSend, uint16 lastByteSent, uint16 cwnd){
+  if (lastByteSent == file_len) // File Transfer Complete
+    return lastByteSent;
+  if (lastByteSent > file_len) // Error, more bytes sent then size of file
+    return -1;
+  uint16 BTS  = bytesToSend;
+  uint16 LBS  = lastByteSent;
+  uint16 CWND = cwnd;
+  while( LBS < BTS ) {
+    bitset<3> flags = bitset<3>(0x0);	      
+    uint16 fl = min(BTS, (uint16)(file_len-LBS)); // Maximum amount of file left to send
+    fl = min(fl, MAX_BODY_LEN);
+    if(fl <= 0) // File Transfer Complete
+      return LBS;
+    TCPPacket packet = TCPPacket(LBS, 0, cwnd, flags, file_buf+LBS,fl);
+    unsigned char sendbuf[MAX_PACKET_LEN];
+    packet.encode(sendbuf);
+    cout << "Sending data packet " << packet.getSeqNumber() << cwnd << " SSThresh" << endl;
+    cout << "Sent Body: " << packet.getBodyLength() << " | LastByteSent: " << LBS << endl;
+    /*
+    int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
+    if (send_status < 0){
+      cerr << "Error Sending Packet...\nServer Closing..." << endl;
+      return -1;
+    }
+    */
+    LBS+=packet.getBodyLength();
+    cout << "File Sent..." << endl;	  
+  }
+  return LBS;
 }
