@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
   // Resolve IP from Hostname
   const char* ip = dns(host.c_str(), port.c_str()).c_str();
   cout << "IP Address: " << ip << endl;
-  
+
   if ( (socketfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
       cerr << "Error Creating Socket...\nServer Closing..." << endl;
       exit(1);
@@ -103,13 +103,14 @@ int main(int argc, char* argv[]) {
   serverAddr.sin_port = htons(atoi(port.c_str()));
   serverAddr.sin_addr.s_addr = inet_addr(ip);
   memset(serverAddr.sin_zero, '\0', sizeof(serverAddr.sin_zero));
-  
+
   int bind_status;
   if ( (bind_status = bind(socketfd, (struct sockaddr*) &serverAddr, sizeof(serverAddr))) < 0 ){
     close(socketfd);	
     cerr << "Error Binding Socket to Address...\nServer Closing..." << endl;
     exit(2);
   } 
+
   // Listen for UDP Packets && Implement TCP 3 Way Handshake With States
   cout << "Listening for UDP Packets..." << endl;
   uint16 CLIENT_SEQ_NUM = 0;
@@ -122,15 +123,14 @@ int main(int argc, char* argv[]) {
 
   STATE = LISTEN;
   while(1) {
-    //    cout << "Current State: " << STATE << endl;
     unsigned char buf[MAX_PACKET_LEN];
     struct sockaddr_in client_addr;
 
     socklen_t len = sizeof(client_addr);
    
     struct timeval time_out;
-    time_out.tv_sec = 0;
-    time_out.tv_usec = TIME_OUT;
+    time_out.tv_sec  = (TIME_OUT/1000000);
+    time_out.tv_usec = (TIME_OUT%1000000);
     if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO,&time_out,sizeof(time_out)) < 0) {
       perror("Error");
     }
@@ -382,6 +382,7 @@ int main(int argc, char* argv[]) {
 	    if (STATE != TIMED_WAIT)
 	      LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
 	    TIME_OUT*=2;
+	    
 	    STATE = TIMED_WAIT;
 	  }
 	  }	  
@@ -391,6 +392,7 @@ int main(int argc, char* argv[]) {
 	  if (recvlen < 0){
 	    STATE = LISTEN;
 	    Connection = 0;
+	    cout << "Connection Closed...\nListening..." << endl;
 	    break;
 	  }else{
 	    goto FIN_ACK;
