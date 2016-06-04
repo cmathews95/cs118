@@ -14,11 +14,12 @@
 #include <iostream>
 #include <sstream>
 #include "TCPPacket.h"
+#include <algorithm>
 using namespace std;
 
 const uint16 MAX_PACKET_LEN = 1032;  // Maximum Packet Length
 const uint16 MAX_SEQ_NUM    = 30720; // Maximum Sequence Number
-const uint16 CONGESTION_WINDOW = 1024;  // Initial Congestion Window Size:
+const uint16 MAX_BODY_LEN = 1024;  // Initial Congestion Window Size:
 int TIME_OUT   = 500000;   // Retransmission Timeout: 500 ms 
 int Connection = 0;
 int  socketfd;
@@ -37,6 +38,19 @@ string dns(const char* hostname, const char* port);
 
 // Catch Signals: If ^C, exit graecfully by closing socket
 void signalHandler(int signal);
+
+uint16 smallest(uint16 x, uint16 y, uint16 z) {
+  return x < y ? (x < z ? x : z) : (y < z ? y : z);
+}
+
+uint16 get_bytes_to_send(uint16 LastByteSent, uint16 LastByteAcked, uint16 cwnd, uint16 fwnd) {
+  uint16 limit = smallest(cwnd,fwnd,(MAX_SEQ_NUM+1)/2);
+  if ((LastByteSent - LastByteAcked) < limit) {
+    return limit - (LastByteSent - LastByteAcked);
+  }
+  return 0;
+}
+
 
 int main(int argc, char* argv[]) {
   if (signal(SIGINT, signalHandler) == SIG_ERR)
@@ -82,8 +96,8 @@ int main(int argc, char* argv[]) {
   // Listen for UDP Packets && Implement TCP 3 Way Handshake With States
   cout << "Listening for UDP Packets..." << endl;
   uint16 CLIENT_SEQ_NUM = 0;
-  
-  uint16 cwnd = CONGESTION_WINDOW;
+  uint16 CLIENT_WINDOW=0;
+  uint16 cwnd = MAX_BODY_LEN;
   uint16 ssthresh = MAX_SEQ_NUM;
   uint16 LastByteSent = 0;
   uint16 LastByteAcked = 0;
@@ -112,13 +126,14 @@ int main(int argc, char* argv[]) {
 	  break;
         case LISTEN:
 	  {
-	    if (recvlen < 0)break;
+	    if (recvlen < 0) break;
 	    cout << "UDP PACKET RECEIVED..." << endl;
 	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
 	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
 	     // If SYN Received, send SYN-ACK, Change State to SYN_RECV
 	  if ( recv_packet.getSYN() && !recv_packet.getACK() && !recv_packet.getFIN() ){
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
+	    CLIENT_WINDOW = recv_packet.getWindowSize();
 	    cout << "Receiving SYN packet: " << CLIENT_SEQ_NUM << endl;
 	    srand(time(NULL));
 	     //LastByteSent = rand() % MAX_SEQ_NUM;
@@ -150,76 +165,49 @@ int main(int argc, char* argv[]) {
 	    cout << "UDP PACKET RECEIVED..." << endl;
 	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
 	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
+	    //CHECK IF ACK IS CORRECT
 	  if ( recv_packet.getACK() && !recv_packet.getSYN() && !recv_packet.getFIN() ){
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
+	    CLIENT_WINDOW = recv_packet.getWindowSize();
+	    LastByteAcked = recv_packet.getAckNumber();
 	    cout << "Receiving ACK packet " << recv_packet.getAckNumber() << endl;
 	    STATE = FILE_TRANSFER;
+	    
+	    if (!FILE_TRANSFER_INIT){
+	      cout << "Finding File..." << endl;
+	      FILE *fd = fopen("index.html", "rb");
+	      fseek(fd,0,SEEK_END);
+	      file_len = ftell(fd);
+	      file_buf = (unsigned char *)malloc(file_len * sizeof(char));
+	      fseek(fd, 0, SEEK_SET);
+	      int resp_readStatus = fread(file_buf, file_len,1,fd);
+	      fclose(fd);
+	      if (resp_readStatus < 0){
+		cerr << "Error: Failed to read from file..." << endl;
+		cout << "Server Closing..." << endl;
+		exit(1);
+	      }
+	      FILE_TRANSFER_INIT = 1;
+	    }
+	    cout << "==========FILE=====SIZE: " << file_len << " =====\n" << file_buf << endl;
+
+	    uint16 bytes_to_send = get_bytes_to_send(LastByteSent,LastByteAcked,cwnd,CLIENT_WINDOW);
+	    uint16 bytes_sent= sendPackets(bytes_to_send ,LastByteSend,cwnd);
+	    if (bytes_sent < 0) {
+	    }
+	    else {
+	      LastByteSent+=bytes_sent;
+	    }
+	    if (file_len == LastByteSent == LastByteAcked) {
+	      //Send first ACK, change state to FIN_SENT
+	    }
+	    
 	  }
 	  break;
 	  }
         case FILE_TRANSFER:
 	  {
 	  //	  cout << "Transmitting File..." << endl;
-	  if (!FILE_TRANSFER_INIT){
-	    cout << "Finding File..." << endl;
-	    FILE *fd = fopen("index.html", "rb");
-	    fseek(fd,0,SEEK_END);
-	    file_len = ftell(fd);
-	    file_buf = (unsigned char *)malloc(file_len * sizeof(char));
-	    fseek(fd, 0, SEEK_SET);
-	    int resp_readStatus = fread(file_buf, file_len,1,fd);
-	    fclose(fd);
-	    if (resp_readStatus < 0){
-	      cerr << "Error: Failed to read from file..." << endl;
-	      cout << "Server Closing..." << endl;
-	      exit(1);
-	    }
-	    cout << "==========FILE=====SIZE: " << file_len << " =====\n" << file_buf << endl;
-	    FILE_TRANSFER_INIT = 1;
-	    // Send first part of file
-	    if ( file_len < MAX_PACKET_LEN ){
-	      // Send Packet in one go
-	      bitset<3> flags = bitset<3>(0x0);
-	      
-	      TCPPacket packet = TCPPacket(LastByteSent, 0, cwnd, flags, file_buf,file_len);
-	      unsigned char sendbuf[MAX_PACKET_LEN];
-	      packet.encode(sendbuf);
-	      int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
-	      if (send_status < 0){
-		cerr << "Error Sending Packet...\nServer Closing..." << endl;
-		exit(1);
-	      }
-	      cout << "Sending data packet " << packet.getSeqNumber() << cwnd << " SSThresh" << endl;
-	      LastByteSent+=packet.getBodyLength();
-	      cout << "File Sent..." << endl;
-	    }
-
-	  }
-	  
-	  // Handle Ack
-	  if ( recvlen >= 0 ) {
-	    cout << "UDP PACKET RECEIVED..." << endl;
-	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
-	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
-	    if ( recv_packet.getACK() && !recv_packet.getSYN() && 
-		 !recv_packet.getFIN() ){
-	      cout << "ACK Received..." << endl;
-	      CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
-	      cout << "Receiving ACK packet " << recv_packet.getAckNumber() << endl;
-	    }
-	  }
-	  if ( recvlen < 0 ) {
-	    ssthresh = cwnd/2;
-	    cwnd_STATE = SLOW_START;
-	    cwnd = 1024;
-	    //Change window to front
-	  }else{
-	    //if Ack is within cwnd
-	    
-	  }
-	  if ( (LastByteSent - LastByteAcked) < cwnd ) {
-	    //send next part of file
-	  }
 	  // Deal with Request, retransmission, and congestion windows. Once we have gotten ACKs for all files, send a FIN and move on to FIN_SENT
 	  // if timeout:
 	  //    sshthresh = cwnd/2;
@@ -235,9 +223,55 @@ int main(int argc, char* argv[]) {
 	  //              goto CONG_AVOID;
 	  //           cwnd = cwnd *2;
 	  //        if (CONG_AVOID)
-	  //            cwnd+=Max Packet Length;
-	  //if ((LastByteSent - LastByteAcked) < cwnd)
-	  //    send next parts of the file
+	  //            cwnd+=Max Packet Length;	  
+	  // Handle Ack
+
+	  if ( recvlen < 0 /*TIMEOUT HAPPENS, MIGHT BE A DIFFERENT CASE */) {
+	    ssthresh = cwnd/2;
+	    cwnd_STATE = SLOW_START;
+	    cwnd = 1024;
+	    
+	    //Change window to front
+	    LastByteSent = LastByteAcked;
+	  }else{
+	    cout << "UDP PACKET RECEIVED..." << endl;
+	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
+	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
+	    if ( recv_packet.getACK() && !recv_packet.getSYN() && 
+		 !recv_packet.getFIN() ){
+	      cout << "ACK Received..." << endl;
+	      CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
+	      CLIENT_WINDOW = recv_packet.getWindowSize();
+	      cout << "Receiving ACK packet " << recv_packet.getAckNumber() << endl;
+	    }
+	    //CHECK RTT TIMER
+	    LastByteAcked = (recv_packet.getAckNumber()>=LastByteAcked) ? recv_packet.getAckNumber() : LastByteAcked;
+	    if (cwnd_STATE == SLOW_START) {
+	      if (cwnd * 2 >= ssthresh) {
+		cwnd_STATE = CONG_AVOID;
+	      }
+	      else {
+		cwnd=cwnd*2;
+	      }
+	    }
+	    if (cwnd_STATE == CONG_AVOID) {
+	      cwnd+=MAX_BODY_LEN;
+	    } 
+	    
+	  }
+	  //Send what we need
+	  uint16 bytes_to_send = get_bytes_to_send(LastByteSent,LastByteAcked,cwnd,CLIENT_WINDOW);
+	  //START RTT TIMER
+	  uint16 bytes_sent= sendPackets(bytes_to_send ,LastByteSend,cwnd);
+	  if (bytes_sent < 0) {
+	  }
+	  else {
+	    LastByteSent+=bytes_sent;
+	  }
+	  if (file_len == LastByteSent == LastByteAcked) {
+	    //Send first ACK, change state to FIN_SENT
+	  }
+
 	break;
 	  }
         case FIN_SENT:
