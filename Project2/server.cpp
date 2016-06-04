@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <signal.h>
 #include <netdb.h>
 #include <fstream>
@@ -26,8 +27,11 @@ int FILE_TRANSFER_INIT = 0;         // Was the file to be sent transferred
 
 int socketfd;
 unsigned char *file_buf; // Malloc later based on file-Size
+
 long long int file_len = 0;
 long long int bytes_sent = 0;
+struct timeval packet_TO; // Time Last Packet was Sent
+
 // Simple State Abstraction to Implement TCP
 enum States { CLOSED, LISTEN, SYN_RECV,FILE_TRANSFER,FIN_SENT,FIN_WAITING};
 enum cwndStates {SLOW_START, CONG_AVOID};
@@ -62,7 +66,8 @@ uint16 get_bytes_to_send(uint16 LastByteSent, uint16 LastByteAcked, uint16 cwnd,
 }
 
 // Send Packets based on BytesToSend & Bytes Sent
-uint16 sendPackets(uint16 bytesToSend,uint16 LastByteSent, uint16 cwnd);
+
+uint16 sendPackets(uint16 bytesToSend,uint16 LastByteSent, uint16 cwnd,struct sockaddr_in c_addr);
 
 int main(int argc, char* argv[]) {
   if (signal(SIGINT, signalHandler) == SIG_ERR)
@@ -185,6 +190,7 @@ int main(int argc, char* argv[]) {
 	    STATE = FILE_TRANSFER;
 	    
 	    if (!FILE_TRANSFER_INIT){
+	      // Set Timeout to something very small
 	      cout << "Finding File..." << endl;
 	      FILE *fd = fopen("index.html", "rb");
 	      fseek(fd,0,SEEK_END);
@@ -202,8 +208,6 @@ int main(int argc, char* argv[]) {
 	    }
 	    cout << "==========FILE=====SIZE: " << file_len << " =====\n" << file_buf << endl;
 	    goto send;
-	    
-	    
 	  }
 	  break;
 	  }
@@ -229,6 +233,8 @@ int main(int argc, char* argv[]) {
 	  // Handle Ack
 
 	  if ( recvlen < 0 /*TIMEOUT HAPPENS, MIGHT BE A DIFFERENT CASE */) {
+	    // Check if Timeout Happened by comparing current time with packet_TO
+	    
 	    ssthresh = cwnd/2;
 	    cwnd_STATE = SLOW_START;
 	    cwnd = 1024;
@@ -265,7 +271,7 @@ int main(int argc, char* argv[]) {
 	  //Send what we need
 	  uint16 bytes_to_send = get_bytes_to_send(LastByteSent,LastByteAcked,cwnd,CLIENT_WINDOW);
 	  //START RTT TIMER
-	  uint16 _bytes_sent=sendPackets(bytes_to_send ,LastByteSent,cwnd);
+	  uint16 _bytes_sent= sendPackets(bytes_to_send ,LastByteSent,cwnd,client_addr);
 	  if (_bytes_sent < 0) {
 	  }
 	  else {
@@ -273,7 +279,7 @@ int main(int argc, char* argv[]) {
 	    bytes_sent+=_bytes_sent;
 	  }
 	  if ((file_len == bytes_sent) && (LastByteSent==LastByteAcked)) {
-	    //Send first ACK, change state to FIN_SENT
+	    //Send first FIN, change state to FIN_SENT
 	  }
 
 	break;
@@ -324,13 +330,16 @@ void signalHandler(int signal){
   exit(0);
 }
 
-uint16 sendPackets(uint16 bytesToSend,uint16 LastByteSent, uint16 cwnd){
+
+uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, struct sockaddr_in c_addr){
+  struct sockaddr_in client_addr = c_addr;
+  socklen_t len = sizeof(client_addr);
   if (bytes_sent <= file_len) // File Transfer Complete
     return 0;
   uint16 bytesSentNow = 0;
   while( bytesSentNow < bytesToSend ) {
     bitset<3> flags = bitset<3>(0x0);	      
-    uint16 fl = min(bytesToSend, (uint16)(file_len-bytesSent)); // Maximum amount of file left to send
+    uint16 fl = min(bytesToSend, (uint16)(file_len-bytes_sent)); // Maximum amount of file left to send
     fl = min(fl, MAX_BODY_LEN);
     if(fl <= 0) // File Transfer Complete
       return bytesSentNow;
@@ -346,6 +355,8 @@ uint16 sendPackets(uint16 bytesToSend,uint16 LastByteSent, uint16 cwnd){
       return -1;
     }
     bytesSentNow+=fl;
+    gettimeofday(&packet_TO, NULL);
+    cout << "TIME: " << packet_TO.tv_sec << " | " << "MS: " << packet_TO.tv_usec << endl;
     cout << "File Sent..." << endl;	  
   }
   return bytesSentNow;
