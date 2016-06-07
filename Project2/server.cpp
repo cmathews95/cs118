@@ -109,14 +109,17 @@ int main(int argc, char* argv[]) {
 
   string host = "10.0.0.1";
   string port = "4000";
+  string file = "";
   // Parse Command Line Arguments
   if (argc == 3) {
-    host = argv[1];
-    port = argv[2];
+    port = argv[1];
+    file = argv[2];
   }
-  if (argc != 1 || argc > 3)
-    cerr << "Invalid Command Line Arguments" << endl;
-  
+  if (argc != 3) {
+    cerr << "Usage: ./server PORT-NUMBER FILE-NAME" << endl;
+    cerr << "Invalid Command Line Arguments...\nServer Closing..." << endl;
+    exit(1);
+  }
   cout << "==========================================================" << 
   endl;
   cout << "Initializing Server with Hostname: " << host << " | Port: " << 
@@ -244,8 +247,8 @@ int main(int argc, char* argv[]) {
 	    ackArr[LastByteAcked].RTTtimer.stop();
 	    if (!FILE_TRANSFER_INIT){
 
-	      cout << "Finding File..." << endl;
-	      FILE *fd = fopen("large.txt", "rb");
+	      cout << "Finding " << file << "..." << endl;
+	      FILE *fd = fopen(file.c_str(), "rb");
 	      fseek(fd,0,SEEK_END);
 	      file_len = ftell(fd);
 	      file_buf = (unsigned char *)malloc(file_len * sizeof(char));
