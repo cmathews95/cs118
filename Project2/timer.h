@@ -1,17 +1,19 @@
 #include <ctime>
-
-
+#include <cstdio>
+#include <iostream>
+#include <chrono>
 class timer
 {
  public:
-  void start(float _time) { time=_time; startTime=clock(); running = true;}
-  bool hasFired() { return (  ((float)(clock() - startTime) * 1000000.0f) /((float)CLOCKS_PER_SEC) > time);}
+  void start(double _time) { time=_time; startTime=std::chrono::system_clock::now();   running = true;}
+  bool hasFired() { return (  running && (getTimeMicro() > time));}
   bool isRunning() {return running;}
-  float getTime() {  return  ((float)(clock() - startTime) * 1000000.0f) /((float)CLOCKS_PER_SEC); }
+  double getRunningTime() { std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now() - startTime; return elapsed_seconds.count();}
+  double getTimeMicro() { return (getRunningTime() * 1000000.0); }
   void stop() {running = false;}
-  void reset() { startTime=clock();}
+  void reset() { startTime=std::chrono::system_clock::now();}
  private:
-  std::clock_t startTime;
-  float time;
+  std::chrono::time_point<std::chrono::system_clock> startTime;
+  double time;
   bool running;
 };

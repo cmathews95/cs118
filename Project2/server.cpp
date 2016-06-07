@@ -32,6 +32,7 @@ const uint16 MAX_BODY_LEN   = 1024;  // Initial Congestion Window Size:
 int TIME_OUT           = 500000;    // Retransmission Timeout: 500 ms 
 int Connection         = 0;         // Is a TCP connection established
 int FILE_TRANSFER_INIT = 0;         // Was the file to be sent transferred
+bool isInitRTT = true;
 
 
 
@@ -88,9 +89,10 @@ uint16 get_bytes_to_send(uint16 LastByteSent, uint16 LastByteAcked, uint16 cwnd,
 // Send Packets based on BytesToSend & Bytes Sent
 
 uint16 sendPackets(uint16 bytesToSend,uint16 LastByteSent, uint16 cwnd,uint16 ssthresh,struct sockaddr_in c_addr);
-void updateRTO(float RTT);
+void updateRTO(double RTT);
 timer * findClosestTimer(uint16 LastByteAcked, uint16 LastByteSent);
 int main(int argc, char* argv[]) {
+
   if (signal(SIGINT, signalHandler) == SIG_ERR)
     cerr << "Can't Catch Signal..." << endl;
 
@@ -184,7 +186,8 @@ int main(int argc, char* argv[]) {
 	      exit(1);
 	    }
 	    cout << "Sending packet " << syn_ack_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << " SYN"  << endl;
-	    LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
+	    
+	    ackArr[(LastByteSent+1)].RTTtimer.start(RTO);
 	    STATE = SYN_RECV;
 	  }
 	  break;
@@ -206,6 +209,7 @@ int main(int argc, char* argv[]) {
 		cerr << "Error Sending Packet...\nServer Closing..." << endl;
 		exit(1);
 	      }
+	      ackArr[LastByteSent+1].isRetrans=true;
 	      cout << "Sending packet " << syn_ack_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << "Retransmission SYN"  << endl;
 	      break;
 	    } 
@@ -213,11 +217,15 @@ int main(int argc, char* argv[]) {
 	    cout << "Receiving packet " << recv_packet.getAckNumber() << endl;
 	    //CHECK IF ACK IS CORRECT
 	    if ( recv_packet.getACK() && !recv_packet.getSYN() && !recv_packet.getFIN() ) {
+	      LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    CLIENT_WINDOW = recv_packet.getWindowSize();
 	    LastByteAcked = recv_packet.getAckNumber();
 	    STATE = FILE_TRANSFER;
-	    
+	    if (!ackArr[LastByteAcked].isRetrans) {
+	      updateRTO(ackArr[LastByteAcked].RTTtimer.getTimeMicro());
+	    }
+	    ackArr[LastByteAcked].RTTtimer.stop();
 	    if (!FILE_TRANSFER_INIT){
 
 	      cout << "Finding File..." << endl;
@@ -295,14 +303,13 @@ int main(int argc, char* argv[]) {
 		  cout << "Before the change: " << LastByteSent <<  " " << LastByteAcked << " " << bytes_sent << " " << backTrack << endl;
 		  LastByteSent = LastByteAcked;
 		  bytes_sent -= backTrack;
-		  cout << "After change: " << LastByteSent << " " << LastByteAcked << " " << bytes_sent << " " << backTrack << endl;
+		  cout << "After change: LastByteSent: " << LastByteSent << "LastByteAcked:  " << LastByteAcked << " " << bytes_sent << " " << backTrack << endl;
 		  goto send;
 		}
-	      }
-	      else {
-		break; // its not a timeout, keep polling
-	      }
-	    }else{
+		else {break;}
+	      } else {cout << "Found no timer" << endl;}
+	    }
+	  else{
 	      TCPPacket recv_packet = TCPPacket(buf, recvlen);  
 	      cout << "Receiving packet " << recv_packet.getAckNumber() << endl;
 	      if ( recv_packet.getACK() && !recv_packet.getSYN() && 
@@ -313,12 +320,13 @@ int main(int argc, char* argv[]) {
 	      LastByteAcked =  recv_packet.getAckNumber();
 	      if (ackArr[LastByteAcked].RTTtimer.isRunning()) {
 		if (!ackArr[LastByteAcked].isRetrans) {
-		  updateRTO(ackArr[LastByteAcked].RTTtimer.getTime());
+		  updateRTO(ackArr[LastByteAcked].RTTtimer.getTimeMicro());
 		}
 		else {
 		  ackArr[LastByteAcked].isRetrans = false;
 		}
 	      }
+	      ackArr[LastByteAcked].RTTtimer.stop();
 	      if (cwnd_STATE == SLOW_START) {
 		if ((cwnd + MAX_BODY_LEN) >= ssthresh) {
 		  cwnd_STATE = CONG_AVOID;
@@ -361,8 +369,8 @@ int main(int argc, char* argv[]) {
 	      cout << "Initiating Closing of Connection" << endl;
 	      cout << "Sending packet " << fin_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << " FIN"  << endl;
 
-	      LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
-	      TIME_OUT = RTO;
+	      RTO = 2 * RTO;
+	      TIME_OUT = 2*RTO;
 	      STATE=FIN_SENT;
 	    }
 	    
@@ -383,14 +391,14 @@ int main(int argc, char* argv[]) {
 	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
 	      exit(1);
 	    }
-	    cout << "Sending packet " << fin_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << "Retransmission FIN"  << endl;
+	    cout << "Sending packet " << fin_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << " Retransmission FIN"  << endl;
 	    break;
 	  }
-
 	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
 	    cout << "Receiving packet " << recv_packet.getAckNumber() << endl;
 	    //check correct seq num
 	  if ( recv_packet.getFIN() && recv_packet.getACK() && !recv_packet.getSYN() ){
+	    LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    CLIENT_WINDOW = recv_packet.getWindowSize();
 	    LastByteAcked = recv_packet.getAckNumber();
@@ -433,8 +441,7 @@ int main(int argc, char* argv[]) {
 	      }
 	      cout << "Sending packet " << fin_ack_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << " FIN"  << endl;
 	      if (STATE != TIMED_WAIT) 
-		LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
-	      TIME_OUT*=2; // this happens anyway, at each timeout we need to wait twice the time.
+		TIME_OUT*=2; // this happens anyway, at each timeout we need to wait twice the time.
 	      
 	      STATE = TIMED_WAIT;
 	    }
@@ -520,6 +527,7 @@ uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, uint16 
       return -1;
     }
     bytesSentNow+=fl;
+    cout << "Starting timer with this RTO: " << RTO << "And this seq num: " << (LastByteSent+bytesSentNow)%MAX_SEQ_NUM << endl;
     ackArr[(LastByteSent+bytesSentNow)%MAX_SEQ_NUM].RTTtimer.start(RTO);
     gettimeofday(&packet_TO, NULL);
   }
@@ -527,17 +535,27 @@ uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, uint16 
 }
 
 
-void updateRTO(float RTT) {
-  long long diff = RTT-SRTT;
-  SRTT = SRTT + alpha * diff;
-  DevRTT = DevRTT + beta*(abs(diff) - DevRTT);
+void updateRTO(double RTT) {
+  if (isInitRTT){
+    SRTT = RTT;
+    DevRTT = SRTT/2;
+    isInitRTT = false;
+  }
+  else {
+    long long diff = RTT-SRTT;
+    SRTT = SRTT + alpha * diff;
+    DevRTT = DevRTT + beta*(abs(diff) - DevRTT);
+  }
   RTO = SRTT + 4 * DevRTT; 
-  cout << "UPDATING RTO: " << RTO << endl;
+
+  cout << "UPDATING RTO: " << RTO << " The RTT I got in microseconds: " << RTT << endl;
 }
 timer * findClosestTimer(uint16 LastByteAcked, uint16 LastByteSent) {
-  for (uint16 i = LastByteAcked;  i <= (LastByteSent > LastByteAcked)?LastByteSent:(MAX_SEQ_NUM+LastByteSent); i++) {
-    if (ackArr[(i%MAX_SEQ_NUM)].RTTtimer.isRunning() && !ackArr[(i%MAX_SEQ_NUM)].isRetrans)
+  int num = (LastByteSent >= LastByteAcked)?LastByteSent:((int)MAX_SEQ_NUM+(int)LastByteSent);
+  for (int i = LastByteAcked;  i <= num; i++) {
+    if (ackArr[(i%MAX_SEQ_NUM)].RTTtimer.isRunning() && !ackArr[(i%MAX_SEQ_NUM)].isRetrans) {
       return &ackArr[(i%MAX_SEQ_NUM)].RTTtimer;
+    }
   }
   return 0x0;
 }
