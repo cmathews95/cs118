@@ -55,7 +55,7 @@ struct timeval packet_TO; // Time Last Packet was Sent
 
 // Simple State Abstraction to Implement TCP
 enum States { CLOSED, LISTEN, SYN_RECV, FILE_TRANSFER, FIN_SENT, FIN_WAITING, TIMED_WAIT};
-enum cwndStates {SLOW_START, CONG_AVOID};
+enum cwndStates {SLOW_START, CONG_AVOID,FAST_RECOVERY};
 
 // Current States
 States STATE = CLOSED;
@@ -87,7 +87,7 @@ uint16 get_bytes_to_send(uint16 LastByteSent, uint16 LastByteAcked, uint16 cwnd,
 }
 
 // Send Packets based on BytesToSend & Bytes Sent
-
+void resendFirstPacket(uint16 LastByteSent, uint16 LastByteAcked, uint16 cwnd, uint16 ssthresh, struct sockaddr_in c_addr);
 uint16 sendPackets(uint16 bytesToSend,uint16 LastByteSent, uint16 cwnd,uint16 ssthresh,struct sockaddr_in c_addr,bool hasPassedMaxBytes,long long int MaxBytesSent);
 void updateRTO(double RTT);
 timer * findClosestTimer(uint16 LastByteAcked, uint16 LastByteSent);
@@ -143,6 +143,7 @@ int main(int argc, char* argv[]) {
   long long int  MaxBytesSent = 0;
   bool hasPassedMaxBytes = true;
   uint16 LastByteAcked = 0;
+  uint16 LastAckCount = 0;
 
   STATE = LISTEN;
   while(1) {
@@ -311,7 +312,10 @@ int main(int argc, char* argv[]) {
 		//incorrect packet
 		break;
 	      }
+	      if (LastByteAcked == recv_packet.getAckNumber()) LastAckCount++;
+	      else LastAckCount = 0;
 	      LastByteAcked =  recv_packet.getAckNumber();
+	      
 	      
 	      if (!hasPassedMaxBytes) {
 		cout << "Trying to do SOMETHING!!! With MaxBytesSent: " << MaxBytesSent << " LastByteSent " << LastByteSent << " LastAckSent " <<  LastByteAcked << endl;
@@ -342,6 +346,26 @@ int main(int argc, char* argv[]) {
 		}
 	      }
 	      ackArr[LastByteAcked].RTTtimer.stop();
+
+
+	      //All Congestion Algorithms
+	      if (cwnd_STATE== FAST_RECOVERY) {
+		if (LastAckCount == 0) {
+		  cwnd=ssthresh;
+		  cwnd_STATE=CONG_AVOID;
+		} else{
+		  cwnd+= MAX_BODY_LEN;
+		}
+	      }
+	      else if (LastAckCount >=3) {
+		ssthresh=max(cwnd/2,2*MAX_BODY_LEN);
+		cwnd=ssthresh+3*MAX_BODY_LEN;
+		cwnd_STATE=FAST_RECOVERY;
+		cout << "Trying to resend packet starting with: " << LastByteAcked << endl;
+		resendFirstPacket(LastByteSent,  LastByteAcked,  cwnd,  ssthresh,client_addr);
+
+	      }
+
 	      if (cwnd_STATE == SLOW_START) {
 		if ((cwnd + MAX_BODY_LEN) >= ssthresh) {
 		  cwnd_STATE = CONG_AVOID;
@@ -538,6 +562,43 @@ void signalHandler(int signal){
     Connection = 0;
   }
   exit(0);
+}
+void resendFirstPacket(uint16 LastByteSent, uint16 LastByteAcked, uint16 cwnd, uint16 ssthresh, struct sockaddr_in c_addr) {
+  struct sockaddr_in client_addr = c_addr;
+  socklen_t len = sizeof(client_addr);
+  uint16 l = 0;
+  for (int i = LastByteAcked; i <= LastByteAcked+MAX_BODY_LEN; i++) {
+    if (ackArr[(i%MAX_SEQ_NUM)].RTTtimer.isRunning()) {
+      ackArr[(i%MAX_SEQ_NUM)].RTTtimer.reset();
+      l = i-LastByteAcked;
+    }
+  }
+  if (l == 0) {
+    cout << "NOOO! " << LastByteAcked << " " << LastByteAcked+MAX_BODY_LEN << endl;
+    exit(7);
+  }
+  int backTrack = 0;
+  if (LastByteSent < LastByteAcked){
+    cout << "Reversing order, we overflowed" << endl;
+    backTrack = MAX_SEQ_NUM - LastByteAcked + LastByteSent;
+  }
+  else {
+    backTrack = LastByteSent-LastByteAcked;
+  }
+  bitset<3> flags = bitset<3>(0x0);	      
+  TCPPacket packet = TCPPacket(LastByteAcked, 0, cwnd, flags, file_buf+bytes_sent-backTrack,l);
+
+  unsigned char sendbuf[MAX_PACKET_LEN];
+  packet.encode(sendbuf);
+  
+  
+  cout << "Sending packet " << packet.getSeqNumber() <<" " << cwnd << " " << ssthresh << " Retransmission" << endl;
+  
+  int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
+  if (send_status < 0){
+    return;
+  }
+  
 }
 
 
