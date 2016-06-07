@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
 	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
 	    cout << "Receiving packet " << recv_packet.getAckNumber() << endl;
 	     // If SYN Received, send SYN-ACK, Change State to SYN_RECV
-	  if ( recv_packet.getSYN() && !recv_packet.getACK() && !recv_packet.getFIN() ){
+	    if ( recv_packet.getSYN() && !recv_packet.getACK() && !recv_packet.getFIN() ){
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    CLIENT_WINDOW = recv_packet.getWindowSize();
 	    srand(time(NULL));
@@ -226,6 +226,8 @@ int main(int argc, char* argv[]) {
 	    STATE = FILE_TRANSFER;
 	    if (!ackArr[LastByteAcked].isRetrans) {
 	      updateRTO(ackArr[LastByteAcked].RTTtimer.getTimeMicro());
+	    } else {
+	      RTO=TIME_OUT;
 	    }
 	    ackArr[LastByteAcked].RTTtimer.stop();
 	    if (!FILE_TRANSFER_INIT){
@@ -259,24 +261,6 @@ int main(int argc, char* argv[]) {
 	  }
         case FILE_TRANSFER:
 	  {
-	  // Deal with Request, retransmission, and congestion windows. Once we have gotten ACKs for all files, send a FIN and move on to FIN_SENT
-	  // if timeout:
-	  //    sshthresh = cwnd/2;
-	  //    cwndState = SLOW_START
-	  //    cwnd=1024;
-	  //    change window to the front
-	  // else:
-	  //    if (ACK is within cwnd):
-	  //        update LastByteAcked
-	  //        if SLOW_START:
-	  //           if (cwnd * 2 >= ssthresh)
-	  //              cwndState = CONG_AVOID;
-	  //              goto CONG_AVOID;
-	  //           cwnd = cwnd *2;
-	  //        if (CONG_AVOID)
-	  //            cwnd+=Max Packet Length;	  
-	  // Handle Ack
-
 	    if ( recvlen < 0 )  {
 	      timer * tim = findClosestTimer(LastByteAcked,LastByteSent);
 	      if (tim != NULL) {
@@ -311,7 +295,7 @@ int main(int argc, char* argv[]) {
 		  goto send;
 		}
 		else {break;}
-	      } else {cout << "Found no timer" << endl; break;}
+	      } else {break;}
 	    }
 	  else{
 	      TCPPacket recv_packet = TCPPacket(buf, recvlen);  
@@ -320,9 +304,13 @@ int main(int argc, char* argv[]) {
 		   !recv_packet.getFIN() ){
 		CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 		CLIENT_WINDOW = recv_packet.getWindowSize();
+	      } else if (recv_packet.getFIN() && !recv_packet.getSYN()) {
+		// close connection?
 	      }
-	      uint16 inc = 1;
-	      if (recv_packet.getAckNumber() > LastByteAcked) inc = recv_packet.getAckNumber() - LastByteAcked;
+	      else {
+		//incorrect packet
+		break;
+	      }
 	      LastByteAcked =  recv_packet.getAckNumber();
 	      
 	      if (!hasPassedMaxBytes) {
@@ -360,12 +348,10 @@ int main(int argc, char* argv[]) {
 		}
 		else {
 		  cwnd+=MAX_BODY_LEN;
-		  cout << "Slow Start, Cwnd is now: " << cwnd << endl;
 		}
 	      }
 	      if (cwnd_STATE == CONG_AVOID) {
-		cwnd+=ceil((inc * MAX_BODY_LEN)/((double)cwnd));
-		cout << "CONG_AVOID, Cwnd is now: " << cwnd << endl;
+		cwnd+=( MAX_BODY_LEN/((double)cwnd)) * MAX_BODY_LEN;
 	      }
 	    }
 	  send:
