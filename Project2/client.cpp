@@ -357,7 +357,6 @@ int main(int argc, char* argv[]){
       
 	    if (( recv_packet.getFIN() && !recv_packet.getACK()) || resendFin ) // If you receive a fin, that means your fin-ack got dropped
 	      {
-		cout << "Resending FIN-ACK" << endl;
 		goto sending_fin_ack;
 	      }
 
