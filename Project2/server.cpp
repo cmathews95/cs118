@@ -221,7 +221,7 @@ int main(int argc, char* argv[]) {
 	    if (!FILE_TRANSFER_INIT){
 
 	      cout << "Finding File..." << endl;
-	      FILE *fd = fopen("large.txt", "rb");
+	      FILE *fd = fopen("small.txt", "rb");
 	      fseek(fd,0,SEEK_END);
 	      file_len = ftell(fd);
 	      file_buf = (unsigned char *)malloc(file_len * sizeof(char));
@@ -277,7 +277,11 @@ int main(int argc, char* argv[]) {
 		  cwnd = 1024;
 		  
 		  //Change window to front
-		  for (uint16 i = LastByteAcked;  i <= (LastByteSent > LastByteAcked)?LastByteSent:(MAX_SEQ_NUM+LastByteSent); i++) {
+		  int num = (LastByteSent >= LastByteAcked)?LastByteSent:(int)((int)MAX_SEQ_NUM+(int)LastByteSent);
+		  cout << "Inifite loop? " << LastByteAcked << " Sent: " << LastByteSent << " " << MAX_SEQ_NUM+LastByteSent << " What its looping to: " << num << endl;
+
+		  
+		  for (int i = LastByteAcked;  i <= num; i++) {
 		    ackArr[(i%MAX_SEQ_NUM)].isRetrans=true;
 		    ackArr[(i%MAX_SEQ_NUM)].RTTtimer.stop();
 		  }
@@ -288,8 +292,11 @@ int main(int argc, char* argv[]) {
 		  else {
 		    backTrack = LastByteSent-LastByteAcked;
 		  }
+		  cout << "Before the change: " << LastByteSent <<  " " << LastByteAcked << " " << bytes_sent << " " << backTrack << endl;
 		  LastByteSent = LastByteAcked;
 		  bytes_sent -= backTrack;
+		  cout << "After change: " << LastByteSent << " " << LastByteAcked << " " << bytes_sent << " " << backTrack << endl;
+		  goto send;
 		}
 	      }
 	      else {
