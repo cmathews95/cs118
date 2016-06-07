@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdexcept>
 #include <iostream>
-
+#include <arpa/inet.h>
 typedef uint16_t uint16;
 
 const int ACKINDEX = 0;
@@ -50,9 +50,9 @@ inline TCPPacket::TCPPacket(unsigned char* buff, int length) {
   seqNumber = (buff[0]+((buff[1]&0xff)<<8));
   ackNumber = (buff[2]+((buff[3]&0xff)<<8));
   windowSize = (buff[4]+((buff[5]&0xff)<<8));
-  bool fin = ((buff[7] & 128) != 0);
-  bool syn = ((buff[7] & 64) != 0);
-  bool ack = ((buff[7] & 32) != 0);
+  bool fin = (((buff[7]) & 128) != 0);
+  bool syn = (((buff[7]) & 64) != 0);
+  bool ack = (((buff[7]) & 32) != 0);
   std::bitset<3> f;
   f.set(FININDEX,fin);
   f.set(SYNINDEX,syn);
@@ -63,14 +63,14 @@ inline TCPPacket::TCPPacket(unsigned char* buff, int length) {
 }
 
 bool TCPPacket::encode(unsigned char* buf) {
-  buf[0] = seqNumber & 0xff;
-  buf[1] = (seqNumber>>8)&0xff;
-  buf[2] = ackNumber & 0xff;
-  buf[3] = (ackNumber>>8)&0xff;
-  buf[4] = windowSize & 0xff;
-  buf[5] = (windowSize>>8) & 0xff;
+  buf[1] = htons(seqNumber) & 0xff;
+  buf[0] = (htons(seqNumber)>>8)&0xff;
+  buf[3] = htons(ackNumber) & 0xff;
+  buf[2] = (htons(ackNumber)>>8)&0xff;
+  buf[5] = htons(windowSize) & 0xff;
+  buf[4] = (htons(windowSize)>>8) & 0xff;
   buf[6] = 0;
-  buf[7] = (128*flags.test(FININDEX))+(64*flags.test(SYNINDEX)) + (32*flags.test(ACKINDEX));
+  buf[7] =((128*flags.test(FININDEX))+(64*flags.test(SYNINDEX)) + (32*flags.test(ACKINDEX)));
   memcpy(&buf[8],body,bodyLength);
   return true;
 }

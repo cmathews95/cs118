@@ -92,7 +92,18 @@ uint16 sendPackets(uint16 bytesToSend,uint16 LastByteSent, uint16 cwnd,uint16 ss
 void updateRTO(double RTT);
 timer * findClosestTimer(uint16 LastByteAcked, uint16 LastByteSent);
 int main(int argc, char* argv[]) {
+  /*bitset<3> f = bitset<3>(0x0);
+  f.set(SYNINDEX,1);
+  f.set(ACKINDEX,1);
+  f.set(FININDEX,1);
+    TCPPacket packet('2'+('3'<<8),'1','1',f,NULL,0);
+  unsigned char buf[MAX_PACKET_LEN];
+  packet.encode(buf);
+  cout << buf[0] << " " << buf[1] << " " << buf[2] << " " << buf[3] << " " << buf[4] << " " << buf[5] << " " <<buf[6] << " " <<  buf[8] << endl;
+  TCPPacket packet2(buf,packet.getLengthOfEncoding());
+  cout << packet2.getSeqNumber() <<" " << packet2.getSYN() << packet2.getACK() << packet2.getFIN()<< endl;
 
+  exit(5);*/
   if (signal(SIGINT, signalHandler) == SIG_ERR)
     cerr << "Can't Catch Signal..." << endl;
 

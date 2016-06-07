@@ -126,9 +126,9 @@ int main(int argc, char* argv[]){
 	flags.set(SYNINDEX,1);
 	syn_packet = TCPPacket(sequence_num, next_byte_expected, RECEIVER_WINDOW, flags, NULL, 0);
 	syn_packet.encode(sendBuf);
-	
+	string s = (init_counter > 0) ? " Retransmission" : "";
 	//TODO Insert TIMEOUT
-	cout << "Sending packet " << syn_packet.getAckNumber() << " SYN" << endl;
+	cout << "Sending packet " << syn_packet.getAckNumber() << s <<  " SYN" << endl;
 	send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * syn_packet.getLengthOfEncoding(), 0, (struct sockaddr *) &serverAddr, from_len);
 
 	if(send_status < 0)
@@ -267,7 +267,7 @@ int main(int argc, char* argv[]){
 	    
 	    fa_packet.encode(sendBuf);
 	    
-	    cout << "Sending packet " << fa_packet.getAckNumber() << " FIN";
+	    cout << "Sending packet " << fa_packet.getAckNumber() << " FIN" << endl;;
 	    send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * fa_packet.getLengthOfEncoding(), 0, (struct sockaddr *) &serverAddr, from_len);
 
 	    if(send_status < 0)
