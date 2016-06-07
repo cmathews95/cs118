@@ -210,7 +210,7 @@ int main(int argc, char* argv[]) {
 		exit(1);
 	      }
 	      ackArr[LastByteSent+1].isRetrans=true;
-	      cout << "Sending packet " << syn_ack_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << "Retransmission SYN"  << endl;
+	      cout << "Sending packet " << syn_ack_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << " Retransmission SYN"  << endl;
 	      break;
 	    } 
 	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
@@ -286,14 +286,11 @@ int main(int argc, char* argv[]) {
 		  
 		  //Change window to front
 		  int num = (LastByteSent >= LastByteAcked)?LastByteSent:(int)((int)MAX_SEQ_NUM+(int)LastByteSent);
-		  cout << "Inifite loop? " << LastByteAcked << " Sent: " << LastByteSent << " " << MAX_SEQ_NUM+LastByteSent << " What its looping to: " << num << endl;
-
-		  
 		  for (int i = LastByteAcked;  i <= num; i++) {
 		    ackArr[(i%MAX_SEQ_NUM)].isRetrans=true;
 		    ackArr[(i%MAX_SEQ_NUM)].RTTtimer.stop();
 		  }
-		  uint16 backTrack = 0;
+		  int backTrack = 0;
 		  if (LastByteSent < LastByteAcked){
 		    backTrack = MAX_SEQ_NUM - LastByteAcked + LastByteSent;
 		  }
@@ -303,11 +300,11 @@ int main(int argc, char* argv[]) {
 		  cout << "Before the change: " << LastByteSent <<  " " << LastByteAcked << " " << bytes_sent << " " << backTrack << endl;
 		  LastByteSent = LastByteAcked;
 		  bytes_sent -= backTrack;
-		  cout << "After change: LastByteSent: " << LastByteSent << "LastByteAcked:  " << LastByteAcked << " " << bytes_sent << " " << backTrack << endl;
+		  cout << "After change: LastByteSent: " << LastByteSent << " LastByteAcked:  " << LastByteAcked << " " << bytes_sent << " " << backTrack << endl;
 		  goto send;
 		}
 		else {break;}
-	      } else {cout << "Found no timer" << endl;}
+	      } else {cout << "Found no timer" << endl; break;}
 	    }
 	  else{
 	      TCPPacket recv_packet = TCPPacket(buf, recvlen);  
@@ -352,6 +349,7 @@ int main(int argc, char* argv[]) {
 	    else {
 	      LastByteSent= (LastByteSent+_bytes_sent)%MAX_SEQ_NUM;
 	      bytes_sent+=_bytes_sent;
+	      cout << "I am now at LastByteSent: " << LastByteSent << " and LastByteAcked: " << LastByteAcked << endl;
 	    }
 	    if ((file_len == bytes_sent) && (LastByteSent==LastByteAcked)) {
 	      //Send first FIN, change state to FIN_SENT
@@ -527,7 +525,7 @@ uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, uint16 
       return -1;
     }
     bytesSentNow+=fl;
-    cout << "Starting timer with this RTO: " << RTO << "And this seq num: " << (LastByteSent+bytesSentNow)%MAX_SEQ_NUM << endl;
+    cout << "Starting timer with this RTO: " << RTO << " And this seq num: " << (LastByteSent+bytesSentNow)%MAX_SEQ_NUM << endl;
     ackArr[(LastByteSent+bytesSentNow)%MAX_SEQ_NUM].RTTtimer.start(RTO);
     gettimeofday(&packet_TO, NULL);
   }
@@ -553,7 +551,7 @@ void updateRTO(double RTT) {
 timer * findClosestTimer(uint16 LastByteAcked, uint16 LastByteSent) {
   int num = (LastByteSent >= LastByteAcked)?LastByteSent:((int)MAX_SEQ_NUM+(int)LastByteSent);
   for (int i = LastByteAcked;  i <= num; i++) {
-    if (ackArr[(i%MAX_SEQ_NUM)].RTTtimer.isRunning() && !ackArr[(i%MAX_SEQ_NUM)].isRetrans) {
+    if (ackArr[(i%MAX_SEQ_NUM)].RTTtimer.isRunning()) {
       return &ackArr[(i%MAX_SEQ_NUM)].RTTtimer;
     }
   }
