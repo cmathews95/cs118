@@ -88,7 +88,7 @@ uint16 get_bytes_to_send(uint16 LastByteSent, uint16 LastByteAcked, uint16 cwnd,
 
 // Send Packets based on BytesToSend & Bytes Sent
 
-uint16 sendPackets(uint16 bytesToSend,uint16 LastByteSent, uint16 cwnd,uint16 ssthresh,struct sockaddr_in c_addr);
+uint16 sendPackets(uint16 bytesToSend,uint16 LastByteSent, uint16 cwnd,uint16 ssthresh,struct sockaddr_in c_addr,bool hasPassedMaxBytes,long long int MaxBytesSent);
 void updateRTO(double RTT);
 timer * findClosestTimer(uint16 LastByteAcked, uint16 LastByteSent);
 int main(int argc, char* argv[]) {
@@ -140,6 +140,8 @@ int main(int argc, char* argv[]) {
   uint16 cwnd = MAX_BODY_LEN;
   uint16 ssthresh = 15360;
   uint16 LastByteSent = 0;
+  long long int  MaxBytesSent = 0;
+  bool hasPassedMaxBytes = true;
   uint16 LastByteAcked = 0;
 
   STATE = LISTEN;
@@ -229,7 +231,7 @@ int main(int argc, char* argv[]) {
 	    if (!FILE_TRANSFER_INIT){
 
 	      cout << "Finding File..." << endl;
-	      FILE *fd = fopen("small.txt", "rb");
+	      FILE *fd = fopen("large.txt", "rb");
 	      fseek(fd,0,SEEK_END);
 	      file_len = ftell(fd);
 	      file_buf = (unsigned char *)malloc(file_len * sizeof(char));
@@ -292,12 +294,17 @@ int main(int argc, char* argv[]) {
 		  }
 		  int backTrack = 0;
 		  if (LastByteSent < LastByteAcked){
+		    cout << "Reversing order, we overflowed" << endl;
 		    backTrack = MAX_SEQ_NUM - LastByteAcked + LastByteSent;
 		  }
 		  else {
 		    backTrack = LastByteSent-LastByteAcked;
 		  }
-		  cout << "Before the change: " << LastByteSent <<  " " << LastByteAcked << " " << bytes_sent << " " << backTrack << endl;
+		  if (hasPassedMaxBytes) {
+		    MaxBytesSent = bytes_sent+1;
+		    cout << "Setting MaxBytesSent: " << MaxBytesSent << endl;
+		    hasPassedMaxBytes = false;
+		  }
 		  LastByteSent = LastByteAcked;
 		  bytes_sent -= backTrack;
 		  cout << "After change: LastByteSent: " << LastByteSent << " LastByteAcked:  " << LastByteAcked << " " << bytes_sent << " " << backTrack << endl;
@@ -314,7 +321,30 @@ int main(int argc, char* argv[]) {
 		CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 		CLIENT_WINDOW = recv_packet.getWindowSize();
 	      }
+	      uint16 inc = 1;
+	      if (recv_packet.getAckNumber() > LastByteAcked) inc = recv_packet.getAckNumber() - LastByteAcked;
 	      LastByteAcked =  recv_packet.getAckNumber();
+	      
+	      if (!hasPassedMaxBytes) {
+		cout << "Trying to do SOMETHING!!! With MaxBytesSent: " << MaxBytesSent << " LastByteSent " << LastByteSent << " LastAckSent " <<  LastByteAcked << endl;
+		if (MaxBytesSent%MAX_SEQ_NUM > LastByteSent) {
+		  if ((LastByteAcked > LastByteSent) && (LastByteAcked <= MaxBytesSent%MAX_SEQ_NUM)) {
+		    bytes_sent+=LastByteAcked-LastByteSent;
+		    LastByteSent = LastByteAcked;
+		    cout << "Now: LastByteSent: " << LastByteSent << " LastByteAcked " << LastByteAcked << endl; 
+		  }
+		}
+		else if (MaxBytesSent%MAX_SEQ_NUM < LastByteSent) {
+		  if ((LastByteAcked <= MaxBytesSent%MAX_SEQ_NUM)) {
+		    bytes_sent+=(LastByteAcked + (MAX_SEQ_NUM - LastByteSent));
+		    LastByteSent=LastByteAcked;
+		  }
+		  else if (LastByteAcked > LastByteSent) {
+		    bytes_sent+=LastByteAcked-LastByteSent;
+		    LastByteSent = LastByteAcked;
+		  }
+		}
+	      }
 	      if (ackArr[LastByteAcked].RTTtimer.isRunning()) {
 		if (!ackArr[LastByteAcked].isRetrans) {
 		  updateRTO(ackArr[LastByteAcked].RTTtimer.getTimeMicro());
@@ -334,7 +364,7 @@ int main(int argc, char* argv[]) {
 		}
 	      }
 	      if (cwnd_STATE == CONG_AVOID) {
-		cwnd+=(MAX_BODY_LEN/cwnd);
+		cwnd+=ceil((inc * MAX_BODY_LEN)/((double)cwnd));
 		cout << "CONG_AVOID, Cwnd is now: " << cwnd << endl;
 	      }
 	    }
@@ -343,12 +373,15 @@ int main(int argc, char* argv[]) {
 	  
 	    uint16 bytes_to_send = get_bytes_to_send(LastByteSent,LastByteAcked,cwnd,CLIENT_WINDOW);
 	    //START RTT TIMER in sendPackets
-	    uint16 _bytes_sent= sendPackets(bytes_to_send ,LastByteSent,cwnd,ssthresh,client_addr);
+	    uint16 _bytes_sent= sendPackets(bytes_to_send ,LastByteSent,cwnd,ssthresh,client_addr,hasPassedMaxBytes,MaxBytesSent);
 	    if (_bytes_sent < 0) {
 	    }
 	    else {
 	      LastByteSent= (LastByteSent+_bytes_sent)%MAX_SEQ_NUM;
 	      bytes_sent+=_bytes_sent;
+	      if (bytes_sent >= MaxBytesSent-1) {
+		hasPassedMaxBytes = true;
+	      }
 	      cout << "I am now at LastByteSent: " << LastByteSent << " and LastByteAcked: " << LastByteAcked << endl;
 	    }
 	    if ((file_len == bytes_sent) && (LastByteSent==LastByteAcked)) {
@@ -453,6 +486,29 @@ int main(int argc, char* argv[]) {
 	    STATE = LISTEN;
 	    Connection = 0;
 	    cout << "Connection Closed...\nListening..." << endl;
+	      // Listen for UDP Packets && Implement TCP 3 Way Handshake With States
+	    CLIENT_SEQ_NUM = 0;
+	    CLIENT_WINDOW=0;
+	    cwnd = MAX_BODY_LEN;
+	    ssthresh = 15360;
+	    LastByteSent = 0;
+	    LastByteAcked = 0;
+	    TIME_OUT           = 500000;    // Retransmission Timeout: 500 ms 
+
+	    
+	    FILE_TRANSFER_INIT = 0;         // Was the file to be sent transferred
+	    isInitRTT = true;
+
+
+
+
+	    SRTT = 3000000;
+	    DevRTT = 3000000;
+	    RTO =  SRTT + 4*DevRTT;
+	    file_len = 0;
+	    bytes_sent = 0;
+	    cwnd_STATE = SLOW_START;
+
 	    break;
 	  }else{
 	    goto FIN_ACK;
@@ -499,7 +555,7 @@ void signalHandler(int signal){
 }
 
 
-uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, uint16 ssthresh, struct sockaddr_in c_addr){
+uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, uint16 ssthresh, struct sockaddr_in c_addr,bool hasPassedMaxBytes, long long int MaxBytesPassed){
   struct sockaddr_in client_addr = c_addr;
   socklen_t len = sizeof(client_addr);
   if (bytes_sent >= file_len) // File Transfer Complete
@@ -516,7 +572,7 @@ uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, uint16 
     unsigned char sendbuf[MAX_PACKET_LEN];
     packet.encode(sendbuf);
 
-    string s = (ackArr[(LastByteSent+bytesSentNow+fl)%MAX_SEQ_NUM].isRetrans)?" Retransmission":" ";
+    string s = (ackArr[(LastByteSent+bytesSentNow+fl)%MAX_SEQ_NUM].isRetrans && !hasPassedMaxBytes)?" Retransmission":" ";
     cout << "Sending packet " << packet.getSeqNumber() <<" " << cwnd << " " << ssthresh << s << endl;
     
     int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
@@ -527,6 +583,10 @@ uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, uint16 
     bytesSentNow+=fl;
     cout << "Starting timer with this RTO: " << RTO << " And this seq num: " << (LastByteSent+bytesSentNow)%MAX_SEQ_NUM << endl;
     ackArr[(LastByteSent+bytesSentNow)%MAX_SEQ_NUM].RTTtimer.start(RTO);
+    if (hasPassedMaxBytes || (bytes_sent+bytesSentNow > MaxBytesPassed-1)) {
+      ackArr[(LastByteSent+bytesSentNow)%MAX_SEQ_NUM].isRetrans=false;
+      hasPassedMaxBytes=true;
+    }
     gettimeofday(&packet_TO, NULL);
   }
   return bytesSentNow;
