@@ -85,6 +85,7 @@ char* HttpRequest::toText(void) {
     {
       text+= iter->first + ": " + iter->second + "\r\n";
     }
+  text+="\r\n";
   return (char*)text.data();
 }
 

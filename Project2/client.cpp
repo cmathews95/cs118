@@ -26,7 +26,7 @@ const uint16_t BUFF_SIZE = 1033; // One extra bit to null terminate.
 const uint16_t INITIAL_SLOWSTART_THRESH = 30720;
 // const uint16_t RETRANSMISSION_TIMEOUT = 500000; // 500 milliseconds
 const int RETRANSMISSION_TIMEOUT = 500000; // 500 milliseconds
-const uint16_t RECEIVER_WINDOW = 30720; 
+const uint16_t RECEIVER_WINDOW = 15360; 
 
 int socketfd;
 int Connection = 0;

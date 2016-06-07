@@ -87,7 +87,7 @@ uint16 get_bytes_to_send(uint16 LastByteSent, uint16 LastByteAcked, uint16 cwnd,
 
 // Send Packets based on BytesToSend & Bytes Sent
 
-uint16 sendPackets(uint16 bytesToSend,uint16 LastByteSent, uint16 cwnd,struct sockaddr_in c_addr);
+uint16 sendPackets(uint16 bytesToSend,uint16 LastByteSent, uint16 cwnd,uint16 ssthresh,struct sockaddr_in c_addr);
 void updateRTO(float RTT);
 timer * findClosestTimer(uint16 LastByteAcked, uint16 LastByteSent);
 int main(int argc, char* argv[]) {
@@ -133,11 +133,10 @@ int main(int argc, char* argv[]) {
   } 
 
   // Listen for UDP Packets && Implement TCP 3 Way Handshake With States
-  cout << "Listening for UDP Packets..." << endl;
   uint16 CLIENT_SEQ_NUM = 0;
   uint16 CLIENT_WINDOW=0;
   uint16 cwnd = MAX_BODY_LEN;
-  uint16 ssthresh = MAX_SEQ_NUM;
+  uint16 ssthresh = 15360;
   uint16 LastByteSent = 0;
   uint16 LastByteAcked = 0;
 
@@ -164,17 +163,14 @@ int main(int argc, char* argv[]) {
         case LISTEN:
 	  {
 	    if (recvlen < 0) break;
-	    cout << "UDP PACKET RECEIVED..." << endl;
 	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
-	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
+	    cout << "Receiving packet " << recv_packet.getAckNumber() << endl;
 	     // If SYN Received, send SYN-ACK, Change State to SYN_RECV
 	  if ( recv_packet.getSYN() && !recv_packet.getACK() && !recv_packet.getFIN() ){
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    CLIENT_WINDOW = recv_packet.getWindowSize();
-	    cout << "Receiving SYN packet: " << CLIENT_SEQ_NUM << endl;
 	    srand(time(NULL));
 	    LastByteSent=0;
-	    cout << LastByteSent << endl;
 	    // Send SYN-ACK
 	    bitset<3> flags = bitset<3>(0x0);
 	    flags.set(ACKINDEX,1);
@@ -187,7 +183,7 @@ int main(int argc, char* argv[]) {
 	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
 	      exit(1);
 	    }
-	    cout << "Sending data packet " << syn_ack_packet.getSeqNumber() << " " << cwnd << " SSThresh" << endl;
+	    cout << "Sending packet " << syn_ack_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << " SYN"  << endl;
 	    LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
 	    STATE = SYN_RECV;
 	  }
@@ -198,6 +194,7 @@ int main(int argc, char* argv[]) {
 	  // If ACK Received, Change State to FILE_TRANSFER and begin to transfer the file. Start the congestion window and timeouts.
 	  // Else retransmit SYN_ACK
 	    if (recvlen < 0){ // TIME-OUT. Retransmit SYN_ACK
+	    resend_fin_ack:
 	      bitset<3> flags = bitset<3>(0x0);
 	      flags.set(ACKINDEX,1);
 	      flags.set(SYNINDEX,1);
@@ -209,24 +206,22 @@ int main(int argc, char* argv[]) {
 		cerr << "Error Sending Packet...\nServer Closing..." << endl;
 		exit(1);
 	      }
-	      cout << "Sending data packet " << syn_ack_packet.getSeqNumber() << " " << cwnd << " SSThresh" << endl;
+	      cout << "Sending packet " << syn_ack_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << "Retransmission SYN"  << endl;
 	      break;
 	    } 
-	    cout << "UDP PACKET RECEIVED..." << endl;
 	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
-	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
+	    cout << "Receiving packet " << recv_packet.getAckNumber() << endl;
 	    //CHECK IF ACK IS CORRECT
-	  if ( recv_packet.getACK() && !recv_packet.getSYN() && !recv_packet.getFIN() ){
+	    if ( recv_packet.getACK() && !recv_packet.getSYN() && !recv_packet.getFIN() ) {
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    CLIENT_WINDOW = recv_packet.getWindowSize();
 	    LastByteAcked = recv_packet.getAckNumber();
-	    cout << "Receiving ACK packet " << LastByteAcked << endl;
 	    STATE = FILE_TRANSFER;
 	    
 	    if (!FILE_TRANSFER_INIT){
-	      // Set Timeout to something very small
+
 	      cout << "Finding File..." << endl;
-	      FILE *fd = fopen("index.html", "rb");
+	      FILE *fd = fopen("large.txt", "rb");
 	      fseek(fd,0,SEEK_END);
 	      file_len = ftell(fd);
 	      file_buf = (unsigned char *)malloc(file_len * sizeof(char));
@@ -242,15 +237,18 @@ int main(int argc, char* argv[]) {
 	      //now we have to poll for everything.
 	      TIME_OUT = 1000;
 	    }
-	    cout << "==========FILE=====SIZE: " << file_len << " =====\n" << file_buf << endl;
+	    cout << "File Size : " << file_len << endl;
 
 	    goto send;
-	  }
+	    }
+	    else {
+	      //problem, wrong ack or incorrect statements, resending FIN-ACK
+	      goto resend_fin_ack;
+	    }
 	  break;
 	  }
         case FILE_TRANSFER:
 	  {
-	  //	  cout << "Transmitting File..." << endl;
 	  // Deal with Request, retransmission, and congestion windows. Once we have gotten ACKs for all files, send a FIN and move on to FIN_SENT
 	  // if timeout:
 	  //    sshthresh = cwnd/2;
@@ -269,11 +267,11 @@ int main(int argc, char* argv[]) {
 	  //            cwnd+=Max Packet Length;	  
 	  // Handle Ack
 
-	    if ( recvlen < 0 ) {
+	    if ( recvlen < 0 )  {
 	      timer * tim = findClosestTimer(LastByteAcked,LastByteSent);
 	      if (tim != NULL) {
 		if ( tim->hasFired()) {
-		  cout << "Seems to be a timeout!" << endl;
+		  cout << "TIMEOUT" << endl;
 		  ssthresh = cwnd/2;
 		  cwnd_STATE = SLOW_START;
 		  cwnd = 1024;
@@ -298,18 +296,14 @@ int main(int argc, char* argv[]) {
 		break; // its not a timeout, keep polling
 	      }
 	    }else{
-	      cout << "UDP PACKET RECEIVED..." << endl;
 	      TCPPacket recv_packet = TCPPacket(buf, recvlen);  
-	      cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
+	      cout << "Receiving packet " << recv_packet.getAckNumber() << endl;
 	      if ( recv_packet.getACK() && !recv_packet.getSYN() && 
 		   !recv_packet.getFIN() ){
-		cout << "ACK Received..." << endl;
 		CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 		CLIENT_WINDOW = recv_packet.getWindowSize();
-		cout << "Receiving ACK packet " << recv_packet.getAckNumber() << endl;
 	      }
 	      LastByteAcked =  recv_packet.getAckNumber();
-	    
 	      if (ackArr[LastByteAcked].RTTtimer.isRunning()) {
 		if (!ackArr[LastByteAcked].isRetrans) {
 		  updateRTO(ackArr[LastByteAcked].RTTtimer.getTime());
@@ -324,20 +318,20 @@ int main(int argc, char* argv[]) {
 		}
 		else {
 		  cwnd+=MAX_BODY_LEN;
+		  cout << "Slow Start, Cwnd is now: " << cwnd << endl;
 		}
 	      }
 	      if (cwnd_STATE == CONG_AVOID) {
 		cwnd+=(MAX_BODY_LEN/cwnd);
+		cout << "CONG_AVOID, Cwnd is now: " << cwnd << endl;
 	      }
 	    }
 	  send:
 	  //Send what we need
 	  
 	    uint16 bytes_to_send = get_bytes_to_send(LastByteSent,LastByteAcked,cwnd,CLIENT_WINDOW);
-	    cout << "Need to send :" << bytes_to_send << " bytes to the client" << endl;
 	    //START RTT TIMER in sendPackets
-	    uint16 _bytes_sent= sendPackets(bytes_to_send ,LastByteSent,cwnd,client_addr);
-	    cout << "Actually sent :" << _bytes_sent << " bytes to the client" << endl;
+	    uint16 _bytes_sent= sendPackets(bytes_to_send ,LastByteSent,cwnd,ssthresh,client_addr);
 	    if (_bytes_sent < 0) {
 	    }
 	    else {
@@ -358,9 +352,10 @@ int main(int argc, char* argv[]) {
 		exit(1);
 	      }
 	      cout << "Initiating Closing of Connection" << endl;
-	      cout << "Sending FIN packet " << fin_packet.getSeqNumber() << " " << cwnd << " SSThresh" << endl;
+	      cout << "Sending packet " << fin_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << " FIN"  << endl;
+
 	      LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
-	      TIME_OUT = 500000;
+	      TIME_OUT = RTO;
 	      STATE=FIN_SENT;
 	    }
 	    
@@ -369,8 +364,8 @@ int main(int argc, char* argv[]) {
       case FIN_SENT:
 	{
 	  if (recvlen < 0){
-	    cout << "I seem to have timed out on my FIN" << endl;
 	    // Send FIN again
+	  resend_fin:
 	    bitset<3> flags = bitset<3>(0x0);
 	    flags.set(FININDEX,1);
 	    TCPPacket fin_packet = TCPPacket(LastByteSent, 0, cwnd, flags,NULL,0);
@@ -381,58 +376,63 @@ int main(int argc, char* argv[]) {
 	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
 	      exit(1);
 	    }
-	    cout << "Initiating Closing of Connection" << endl;
-	    cout << "Sending FIN packet " << fin_packet.getSeqNumber() << " " << cwnd << " SSThresh" << endl;
+	    cout << "Sending packet " << fin_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << "Retransmission FIN"  << endl;
 	    break;
 	  }
 
-	    cout << "UDP PACKET RECEIVED..." << endl;
 	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
-	    cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
-
+	    cout << "Receiving packet " << recv_packet.getAckNumber() << endl;
+	    //check correct seq num
 	  if ( recv_packet.getFIN() && recv_packet.getACK() && !recv_packet.getSYN() ){
 	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
 	    CLIENT_WINDOW = recv_packet.getWindowSize();
 	    LastByteAcked = recv_packet.getAckNumber();
-	    cout << "Receving ACK packet " << LastByteAcked << endl;
+
 	    STATE = FIN_WAITING;
 	  }
+	  else {
+	    //retransmit 
+	    goto resend_fin;
+	  }
 	  // Wait for FIN_ACK from the client, retransmit if neccisary. Once that is done, move to FIN_WAITING and wait for the next packet.
-      }
 	  break;
+	}
+	  
         case FIN_WAITING:
 	  {
 	  //if we get the last FIN, send a FIN_ACK and then "close" the connection.
-	  if ( recvlen < 0 ) break;
-	  FIN_ACK:
-	  cout << "UDP PACKET RECEIVED..." << endl;
-	  TCPPacket recv_packet = TCPPacket(buf, recvlen);  
-	  cout << "Receiving data packet " << recv_packet.getSeqNumber() << endl;
-	  //CHECK IF ACK IS CORRECT
-	  if ( !recv_packet.getACK() && !recv_packet.getSYN() && recv_packet.getFIN() ){
-	    CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
-	    CLIENT_WINDOW = recv_packet.getWindowSize();
-	    cout << "Receiving FIN packet " << LastByteAcked << endl;
-	    //SEND FIN_ACK
-	    bitset<3> flags = bitset<3>(0x0);
-	    flags.set(FININDEX,1);
-	    flags.set(ACKINDEX,1);
-	    TCPPacket fin_ack_packet = TCPPacket(LastByteSent, (CLIENT_SEQ_NUM+1)%MAX_SEQ_NUM, cwnd, flags,NULL,0);
-	    unsigned char sendbuf[MAX_PACKET_LEN];
-	    fin_ack_packet.encode(sendbuf);
-	    int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*fin_ack_packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
-	    if (send_status < 0){
-	      cerr << "Error Sending Packet...\nServer Closing..." << endl;
-	      exit(1);
+	    if ( recvlen < 0 ) {
+	      //just loop?
+	      break;
 	    }
-	    cout << "Initiating Closing of Connection" << endl;
-	    cout << "Sending FIN packet " << fin_ack_packet.getSeqNumber() << " " << cwnd << " SSThresh" << endl;
-	    if (STATE != TIMED_WAIT)
-	      LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
-	    TIME_OUT*=2;
-	    
-	    STATE = TIMED_WAIT;
-	  }
+	  FIN_ACK:
+	    TCPPacket recv_packet = TCPPacket(buf, recvlen);  
+	    cout << "Receiving packet " << recv_packet.getAckNumber() << endl;
+	  //CHECK IF ACK IS CORRECT
+	    if ( !recv_packet.getACK() && !recv_packet.getSYN() && recv_packet.getFIN() ){
+	      CLIENT_SEQ_NUM = recv_packet.getSeqNumber();
+	      CLIENT_WINDOW = recv_packet.getWindowSize();
+	      //SEND FIN_ACK
+	      bitset<3> flags = bitset<3>(0x0);
+	      flags.set(FININDEX,1);
+	      flags.set(ACKINDEX,1);
+	      TCPPacket fin_ack_packet = TCPPacket(LastByteSent, (CLIENT_SEQ_NUM+1)%MAX_SEQ_NUM, cwnd, flags,NULL,0);
+	      unsigned char sendbuf[MAX_PACKET_LEN];
+	      fin_ack_packet.encode(sendbuf);
+	      int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*fin_ack_packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
+	      if (send_status < 0){
+		cerr << "Error Sending Packet...\nServer Closing..." << endl;
+		exit(1);
+	      }
+	      cout << "Sending packet " << fin_ack_packet.getSeqNumber() << " " << cwnd << " " << ssthresh << " FIN"  << endl;
+	      if (STATE != TIMED_WAIT) 
+		LastByteSent = (LastByteSent+1)%MAX_SEQ_NUM;
+	      TIME_OUT*=2; // this happens anyway, at each timeout we need to wait twice the time.
+	      
+	      STATE = TIMED_WAIT;
+	    }
+	    else {
+	    }
 	  }	  
 	  break;
       case TIMED_WAIT:
@@ -487,27 +487,25 @@ void signalHandler(int signal){
 }
 
 
-uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, struct sockaddr_in c_addr){
+uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, uint16 ssthresh, struct sockaddr_in c_addr){
   struct sockaddr_in client_addr = c_addr;
   socklen_t len = sizeof(client_addr);
-  cout << "Trying to send " << bytesToSend << " bytes. bytes_sent: "<< bytes_sent << " file_len: " << file_len << endl;
   if (bytes_sent >= file_len) // File Transfer Complete
     return 0;
   uint16 bytesSentNow = 0;
   bytesToSend = min((long long)bytesToSend, (file_len-bytes_sent)); // Maximum amount of file left to send
   while( bytesSentNow < bytesToSend ) {
-    cout << "Looping " << bytesSentNow << endl;
     bitset<3> flags = bitset<3>(0x0);	      
     uint16 fl = min((uint16)(bytesToSend-bytesSentNow), MAX_BODY_LEN);
-    cout << "FL: " << fl << endl;
     if(fl == 0) // File Transfer Complete
       return bytesSentNow;
     TCPPacket packet = TCPPacket(LastByteSent+bytesSentNow, 0, cwnd, flags, file_buf+bytes_sent+bytesSentNow,fl);
 
     unsigned char sendbuf[MAX_PACKET_LEN];
     packet.encode(sendbuf);
-    cout << "Sending data packet " << packet.getSeqNumber() << cwnd << " SSThresh" << endl;
-    cout << "Sent Body: " << packet.getBodyLength() << " | LastByteSent: " << LastByteSent << endl;
+
+    string s = (ackArr[(LastByteSent+bytesSentNow+fl)%MAX_SEQ_NUM].isRetrans)?" Retransmission":" ";
+    cout << "Sending packet " << packet.getSeqNumber() <<" " << cwnd << " " << ssthresh << s << endl;
     
     int send_status = sendto(socketfd, sendbuf, sizeof(unsigned char)*packet.getLengthOfEncoding(), 0,(struct sockaddr *)&client_addr, len);
     if (send_status < 0){
@@ -515,10 +513,8 @@ uint16 sendPackets(uint16 bytesToSend, uint16 LastByteSent, uint16 cwnd, struct 
       return -1;
     }
     bytesSentNow+=fl;
-    ackArr[LastByteSent+bytesSentNow].RTTtimer.start(RTO);
+    ackArr[(LastByteSent+bytesSentNow)%MAX_SEQ_NUM].RTTtimer.start(RTO);
     gettimeofday(&packet_TO, NULL);
-    cout << "TIME: " << packet_TO.tv_sec << " | " << "MS: " << packet_TO.tv_usec << endl;
-    cout << "File Sent..." << endl;	  
   }
   return bytesSentNow;
 }
@@ -529,6 +525,7 @@ void updateRTO(float RTT) {
   SRTT = SRTT + alpha * diff;
   DevRTT = DevRTT + beta*(abs(diff) - DevRTT);
   RTO = SRTT + 4 * DevRTT; 
+  cout << "UPDATING RTO: " << RTO << endl;
 }
 timer * findClosestTimer(uint16 LastByteAcked, uint16 LastByteSent) {
   for (uint16 i = LastByteAcked;  i <= (LastByteSent > LastByteAcked)?LastByteSent:(MAX_SEQ_NUM+LastByteSent); i++) {
