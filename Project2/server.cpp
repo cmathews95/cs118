@@ -416,6 +416,7 @@ int main(int argc, char* argv[]) {
 		hasPassedMaxBytes = true;
 	      }
 	      //cout << "I am now at LastByteSent: " << LastByteSent << " and LastByteAcked: " << LastByteAcked << endl;
+	      cout << cwnd << endl;
 	    }
 	    if ((file_len == bytes_sent) && (LastByteSent==LastByteAcked)) {
 	      //Send first FIN, change state to FIN_SENT
@@ -675,7 +676,7 @@ void updateRTO(double RTT) {
     DevRTT = DevRTT + beta*(abs(diff) - DevRTT);
   }
   RTO = SRTT + 4 * DevRTT; 
-  cout << RTO << endl;
+  //cout << RTO << endl;
   //cout << "UPDATING RTO: " << RTO << " The RTT I got in microseconds: " << RTT << endl;
 }
 timer * findClosestTimer(uint16 LastByteAcked, uint16 LastByteSent) {
