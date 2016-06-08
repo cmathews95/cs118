@@ -26,7 +26,7 @@ struct ackInfo
 } ackInfo;
 
 const uint16 MAX_PACKET_LEN = 1032;  // Maximum Packet Length
-const uint16 MAX_SEQ_NUM    = 30720; // Maximum Sequence Number
+const uint16 MAX_SEQ_NUM    = 30721; // Maximum Sequence Number
 struct ackInfo ackArr[MAX_SEQ_NUM];
 const uint16 MAX_BODY_LEN   = 1024;  // Initial Congestion Window Size:
 int TIME_OUT           = 500000;    // Retransmission Timeout: 500 ms 
@@ -72,7 +72,7 @@ uint16 smallest(uint16 x, uint16 y, uint16 z) {
 }
 
 uint16 get_bytes_to_send(uint16 LastByteSent, uint16 LastByteAcked, uint16 cwnd, uint16 fwnd) {
-  uint16 limit = smallest(cwnd,fwnd,(MAX_SEQ_NUM+1)/2);
+  uint16 limit = smallest(cwnd,fwnd,(MAX_SEQ_NUM)/2);
   uint16 diff;
   if (LastByteSent < LastByteAcked) {
     diff = (MAX_SEQ_NUM - LastByteAcked) + LastByteSent;
@@ -107,15 +107,20 @@ int main(int argc, char* argv[]) {
   if (signal(SIGINT, signalHandler) == SIG_ERR)
     cerr << "Can't Catch Signal..." << endl;
 
-  string host = "10.0.0.1";
+  string host = "10.0";
   string port = "4000";
   string file = "";
   // Parse Command Line Arguments
   if (argc == 3) {
+    for (int i = 0; i < strlen(argv[1]); i++)
+      if (!isdigit(argv[1][i])){
+	  cerr << "Usage: ./server PORT-NUMBER FILE-NAME" << endl;
+	  cerr << "Improperly Formatted Port Number...\nServer Closing..." << endl;
+	  exit(1);
+	}
     port = argv[1];
     file = argv[2];
-  }
-  if (argc != 3) {
+  }else{
     cerr << "Usage: ./server PORT-NUMBER FILE-NAME" << endl;
     cerr << "Invalid Command Line Arguments...\nServer Closing..." << endl;
     exit(1);
@@ -126,7 +131,11 @@ int main(int argc, char* argv[]) {
   port << endl;
   
   // Resolve IP from Hostname
-  const char* ip = dns(host.c_str(), port.c_str()).c_str();
+  const char * ip = dns(host.c_str(), port.c_str()).c_str();
+  if (ip[0]=='\0'){
+    cerr << "Error Resolving IP-Check hostname...\nServer Closing..." << endl;
+    exit(1);
+  }
   cout << "IP Address: " << ip << endl;
 
   if ( (socketfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
@@ -151,8 +160,8 @@ int main(int argc, char* argv[]) {
   // Listen for UDP Packets && Implement TCP 3 Way Handshake With States
   uint16 CLIENT_SEQ_NUM = 0;
   uint16 CLIENT_WINDOW=0;
-  uint16 cwnd = MAX_BODY_LEN;
-  uint16 ssthresh = 15360;
+  uint32_t cwnd = MAX_BODY_LEN;
+  uint32_t ssthresh = 15360;
   uint16 LastByteSent = 0;
   long long int  MaxBytesSent = 0;
   bool hasPassedMaxBytes = true;
@@ -372,7 +381,7 @@ int main(int argc, char* argv[]) {
 		}
 	      }
 	      else if (LastAckCount >=3) {
-		ssthresh=max(cwnd/2,2*MAX_BODY_LEN);
+		ssthresh=max(cwnd/2,(uint32_t)(2*MAX_BODY_LEN));
 		cwnd=ssthresh+3*MAX_BODY_LEN;
 		cwnd_STATE=FAST_RECOVERY;
 		cout << "Trying to resend packet starting with: " << LastByteAcked << endl;
@@ -557,7 +566,7 @@ std::string dns(const char* hostname, const char* port){
   
   if ((status = getaddrinfo(hostname, port, &hints, &res)) != 0) {
     std::cerr << "getaddrinfo: " << gai_strerror(status) << std::endl;
-    return NULL;
+    return "";
   }
   for (struct addrinfo* p = res; p != 0; p = p->ai_next) {
     struct sockaddr_in* ipv4 = (struct sockaddr_in*)p->ai_addr;
@@ -565,7 +574,7 @@ std::string dns(const char* hostname, const char* port){
     inet_ntop(p->ai_family, &(ipv4->sin_addr), ipstr, sizeof(ipstr));
     return std::string(ipstr);
   }
-  return NULL;
+  return "";
 }
 
 void signalHandler(int signal){
