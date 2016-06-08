@@ -64,9 +64,20 @@ int main(int argc, char* argv[]){
   // Parse URL
   const char * host = argv[1];
   const char * port = argv[2];
-  const char * ipaddress = dns(host,port).c_str();
 
-    
+  if(!atoi(port))
+    {
+      cerr << "Error: incorrect format for argument PORT-NUMBER. Must be a number. Received " << port << " instead." <<endl;
+      return 1;
+    }
+  char* ipaddress;
+  try{
+    ipaddress = (char*)dns(host,port).c_str();
+  }
+  catch(...){
+    cerr << "Error: Incorrect format for argument SERVER-HOST-OR-IP. Received " << host << "." << endl;
+    return 1;
+  }
   cout << "=====================================+=====================" << 
   endl;
   cout << "Connecting to Server with Hostname: " << host << " | Port: " << 
@@ -82,7 +93,7 @@ int main(int argc, char* argv[]){
 
   // Generating a random sequence number to start with
   srand(time(NULL));
-  uint16 sequence_num = rand() % MAX_SEQUENCE_NUM;
+  uint16 sequence_num = rand() % (MAX_SEQUENCE_NUM+1);
   uint16 next_byte_expected;
   uint16 last_ack; 
   // Setup to Send Packets to Server
@@ -104,7 +115,7 @@ int main(int argc, char* argv[]){
   int send_status, recv_status; 
   //unsigned char* buf = malloc(sizeof(unsigned char) * BUFF_SIZE);
   unsigned char buf[BUFF_SIZE];
-  ofstream file("ReceivedFile",ofstream::out);
+  ofstream file("received.data",ofstream::out);
   vector<unsigned char> receivedData;
 
   /*  // Variables for timeout
@@ -153,7 +164,7 @@ int main(int argc, char* argv[]){
 	time_out.tv_sec = 0;
 	time_out.tv_usec = RETRANSMISSION_TIMEOUT;
 	if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO,&time_out,sizeof(time_out)) < 0) {
-	  perror("Error");
+	  perror("Error setting timeout");
 	}
 	
 	recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0,(struct sockaddr *) &serverAddr, & from_len);
@@ -174,11 +185,11 @@ int main(int argc, char* argv[]){
 	
 	recv_packet=TCPPacket(buf, recv_status);
 	if (recv_packet.getSYN() && recv_packet.getACK() && !recv_packet.getFIN() && recv_packet.getAckNumber() == sequence_num+1) {
-	  sequence_num = (sequence_num + 1) % MAX_SEQUENCE_NUM;
+	  sequence_num = (sequence_num + 1) % (MAX_SEQUENCE_NUM+1);
 	  
 	  cout << "Received packet " << recv_packet.getSeqNumber() << " SYN" << endl;
 	  
-	  next_byte_expected = (recv_packet.getSeqNumber()+ recv_packet.getBodyLength()+1) % MAX_SEQUENCE_NUM;
+	  next_byte_expected = (recv_packet.getSeqNumber()+ recv_packet.getBodyLength()+1) % (MAX_SEQUENCE_NUM+1);
 	// Sending the ack+req
 	  flags = bitset<3>(0x0);
 	  flags.set(ACKINDEX,1);
@@ -241,7 +252,7 @@ int main(int argc, char* argv[]){
 	  
 	  // Once we exit this loop, we have just received a valid packet.
 	  if (recv_packet.getSeqNumber() == next_byte_expected) {
-	    next_byte_expected = (next_byte_expected + recv_packet.getBodyLength()) % MAX_SEQUENCE_NUM;
+	    next_byte_expected = (next_byte_expected + recv_packet.getBodyLength()) % (MAX_SEQUENCE_NUM+1);
 
 	    if (recv_packet.getBodyLength() > 0) {
 	      //SAVE OUR STUFF TO THE FILE
@@ -322,7 +333,7 @@ int main(int argc, char* argv[]){
 		file.close();
 		exit(8);
 	      }
-	    sequence_num = (sequence_num + ack_packet.getBodyLength()) % MAX_SEQUENCE_NUM;
+	    sequence_num = (sequence_num + ack_packet.getBodyLength()) % (MAX_SEQUENCE_NUM+1);
 	  }
 	break;
 	}
@@ -337,10 +348,10 @@ int main(int argc, char* argv[]){
 	    // Also have to update the timeout time.
 	    
 	    struct timeval time_out;
-	    time_out.tv_sec = 1;
-	    time_out.tv_usec = 0;
+	    time_out.tv_sec = 0;
+	    time_out.tv_usec = RETRANSMISSION_TIMEOUT;
 	    if (setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO,&time_out,sizeof(time_out)) < 0) {
-	      perror("Error Here");
+	      perror("Error resetting timeout.");
 	    }
 	    
 	    recv_status=recvfrom(socketfd, buf, sizeof(unsigned char) * BUFF_SIZE, 0, (struct sockaddr *) &serverAddr, & from_len);
@@ -395,7 +406,7 @@ connection_info* urlScraper(char* url) {
   temp->hostname = "";
   temp->port = "";
   temp->obj_path = "";
-  int i = 7;
+  unsigned int i = 7;
   while (url[i]!='/' && url[i]!='\0'){
     temp->hostname += url[i];
     ++i;
