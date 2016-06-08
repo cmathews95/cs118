@@ -118,6 +118,9 @@ int main(int argc, char* argv[]){
   ofstream file("received.data",ofstream::out);
   vector<unsigned char> receivedData;
 
+  bool resendingFIN = false;
+  bool resendingFINACK = false;
+
   /*  // Variables for timeout
     */
   // Need a variable to end the loop (Once the FIN protocol has finished
@@ -144,7 +147,7 @@ int main(int argc, char* argv[]){
 
 	if(send_status < 0)
 	  {
-	    cout << "Could not send fin, exiting" << endl;
+	    cout << "Could not send syn, exiting" << endl;
 	    exit(1);
 	    break;
 	  }
@@ -277,8 +280,10 @@ int main(int argc, char* argv[]){
 	    TCPPacket fa_packet = TCPPacket(sequence_num, next_byte_expected,RECEIVER_WINDOW,flags,NULL,0);
 	    
 	    fa_packet.encode(sendBuf);
-	    
-	    cout << "Sending packet " << fa_packet.getAckNumber() << " FIN" << endl;;
+	    if (resendingFINACK)
+	      cout << "Sending packet " << fa_packet.getAckNumber() << " Retransmission FIN" << endl;
+	    else
+	      cout << "Sending packet " << fa_packet.getAckNumber() << " FIN" << endl;
 	    send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * fa_packet.getLengthOfEncoding(), 0, (struct sockaddr *) &serverAddr, from_len);
 
 	    if(send_status < 0)
@@ -295,7 +300,10 @@ int main(int argc, char* argv[]){
 	    flags.set(FININDEX,1);
 	    TCPPacket fin_packet = TCPPacket(sequence_num, 0, RECEIVER_WINDOW,flags,NULL,0);
 	    fin_packet.encode(sendBuf);
-	    cout << "Sending packet " << fin_packet.getAckNumber() << " FIN" << endl;
+	    if(resendingFIN)
+	      cout << "Sending packet " << fin_packet.getAckNumber() << " Retransmission FIN" << endl;
+	    else
+	      cout << "Sending packet " << fin_packet.getAckNumber() << " FIN" << endl;
 	    send_status = sendto(socketfd, sendBuf, sizeof(unsigned char) * fin_packet.getLengthOfEncoding(), 0, (struct sockaddr *)\
 				 &serverAddr, from_len);
 
@@ -359,8 +367,9 @@ int main(int argc, char* argv[]){
 	    bool resendFin = false;
 	    if(recv_status<0)
               {
-		cout << "I seem to have missed the fin-ack, resending the fin" << endl;
+		cout << "Did not receive fin-ack (timed out), resending the fin" << endl;
 		// Resend fin
+		resendingFIN = true;
 		goto sending_fin; 
               }
 	    // You've received stuff
@@ -368,6 +377,7 @@ int main(int argc, char* argv[]){
       
 	    if (( recv_packet.getFIN() && !recv_packet.getACK()) || resendFin ) // If you receive a fin, that means your fin-ack got dropped
 	      {
+		resendingFINACK = true;
 		cout << "Resending FIN-ACK" << endl;
 		goto sending_fin_ack;
 	      }
