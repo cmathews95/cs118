@@ -125,6 +125,15 @@ int main(int argc, char* argv[]) {
     cerr << "Invalid Command Line Arguments...\nServer Closing..." << endl;
     exit(1);
   }
+
+  ifstream o(file.c_str());
+  if (!o.good()) {
+    cerr << "File: " << file << " does not exist" << endl;
+    cerr << "Invalid Command Line Arguments...\nServer Closing..." << endl;
+    exit(1);
+  }
+
+
   cout << "==========================================================" << 
   endl;
   cout << "Initializing Server with Hostname: " << host << " | Port: " << 
